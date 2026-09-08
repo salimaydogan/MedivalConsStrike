@@ -39,3 +39,9 @@ At üstünde sol tık sağ yana kılıç savurur (32 dayanıklılık). Hedef sa�
 Mobil tarayıcı ana hedef olarak belirlendi. Dokunmatik cihazlarda sol analog hareket çubuğu, sağ kamera sürükleme alanı ve saldırı/blok/hızlanma/binme düğmeleri görünür. Dokunma iptalinde tutulan girişler bırakılır; odak kaybı hareketi durdurur. Mobil piksel oranı 1,25; gölge çözünürlüğü 1024 ile sınırlandırılır. Yatay ekran önerilir. Gerçek Android/iPhone oynanış ve performans testleri henüz yapılmadı.
 
 `public/roadmap.html` bağımsız HTML kontrol listesidir; oyundaki Yol haritası bağlantısıyla açılır. Kişisel işaretler aynı tarayıcıda localStorage içinde saklanır. Cihazlar veya ROADMAP.md ile otomatik eşitlenmez. Mobil testler online aşamadan önce listelenir.
+
+## 0.6 — Kaçınma ve takip
+
+Yaya kaçınma telefonda Kaçın düğmesi, klavyede Boşluk ile kullanılır. Yön girişi varsa o yöne, yoksa kamera yönüne göre geriye 0,28 saniyelik hamle yapılır. 25 dayanıklılık harcar ve 0,85 saniye bekleme uygular. Duvar çarpışması korunur; hasar bağışıklığı vermez. At üstünde veya kılıç savururken kullanılamaz. /roadmap adresi HTML kontrol listesine yönlenir. 13 kural testi ve tip kontrolü geçti; gerçek cihaz testi bekliyor.
+
+Oyuncu bulunamazsa botlarla maç gereksinimi yol haritasına eklendi; uygulaması online oda/takım aşamasındadır.

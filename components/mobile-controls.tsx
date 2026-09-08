@@ -6,6 +6,7 @@ export type TouchInput = {
   move: (x: number, y: number) => void;
   look: (x: number, y: number) => void;
   attack: () => void;
+  dodge: () => void;
   guard: (held: boolean) => void;
   sprint: (held: boolean) => void;
   mount: () => void;
@@ -39,6 +40,7 @@ export default function MobileControls({ input, mounted, near }: { input: TouchI
     </div>
     <div className="touch-actions">{hold(input.sprint,'Hızlan')}{hold(input.guard,'Kalkan')}
       <button className="touch-attack" onPointerDown={e=>{e.preventDefault();input.attack();}}>Kılıç</button>
+      {!mounted&&<button onPointerDown={e=>{e.preventDefault();input.dodge();}}>Kaçın</button>}
       {(mounted||near)&&<button onClick={input.mount}>{mounted?'Attan in':'Ata bin'}</button>}
     </div>
   </div>;
