@@ -26,3 +26,6 @@ Avludaki üç hedef 2,6 metre içindeki ön yaydan hasar alır. Her isabet 34 ha
 Yedi otomatik test hareket kurallarını, saldırı koşullarını, menzil/yön kontrolünü ve blok maliyetini kapsar. Tip kontrolü ve üretim derlemesi geçti. 0.3 görsel ve etkileşim testleri henüz yapılmadı. Oyuncu testinde saldırı animasyonu/temas zamanlaması, kalkan yönü ve geri bildirim değerlendirilmelidir. WebMCP reset_training aracı için destekleyen tarayıcıda çalışma zamanı doğrulaması henüz yapılmadı.
 
 Düz zemin ve dikdörtgen engeller için basit çarpışma kullanılır. Atlı saldırı ve online sunucu sonraki aşamalardır. Hareketin 0.2 temelinde kademeli hızlanma, mesafeye bağlı eklem animasyonları ve yumuşak kamera bulunur.
+
+## 0.4 düzeltmeleri
+Kılıç ve kalkan ileri yönde kaldırılır. Hasar kırmızı ekran kenarı, can kaybı yazısı ve beden tepkisiyle gösterilir. Can sıfırlandığında karakter yere düşer; otomatik sıfırlama yerine Yeniden doğ düğmesi kullanılır. Sekiz kural testi ve tip kontrolü geçti. Görsel oynanış doğrulaması henüz yapılmadı.
