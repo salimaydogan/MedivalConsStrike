@@ -1,28 +1,28 @@
-# Sınır Kalesi — hareket prototipi
+# Sınır Kalesi — 0.3 savaş prototipi
 
-Masaüstü tarayıcı için tek oyunculu üçüncü şahıs hareket ve at sürüşü denemesi. Online bağlantı, savaş, hasar, reklam ve hesap sistemi henüz yoktur.
+Masaüstü tarayıcıda tek oyunculu üçüncü şahıs at sürüşü ve yaya kılıç–kalkan talimi. Online bağlantı, reklam ve hesap sistemi henüz yoktur.
 
-## Çalıştırma
+## Çalıştırma ve doğrulama
 
-Node.js 22.13 veya üzeri ile `npm install`, ardından `npm run dev`. Yayın derlemesi: `npm run build`. Tip kontrolü: `npx tsc --noEmit`.
+Node.js 22.13 veya üzeri: `npm install`, `npm run dev`. Derleme: `npm run build`. Tip kontrolü: `npx tsc --noEmit`. Kuralların testleri: `node --test lib/*.test.mjs`.
 
 ## Kontroller
 
-- WASD: yaya hareketi; at üzerinde W/S ileri/geri, A/D dönüş.
-- Fare: kamera; fare kilidi kullanılamıyorsa basılı tutup sürükleme.
+- WASD: yaya hareketi; at üzerinde W/S ileri/geri ve A/D dönüş.
+- Fare: kamera. Fare kilidi kullanılamıyorsa orta tuşla sürükleme.
 - Shift: koşu / atı hızlandırma.
-- E: yakınındaki ata binme; boş yan alana inme.
-- R veya üstteki düğme: başlangıca dönme.
+- E: yakındaki ata binme veya boş yana inme. Saldırı/blok sırasında kullanılamaz.
+- Sol tık: yaya kılıç saldırısı; 24 dayanıklılık, 0,68 saniye saldırı döngüsü, 0,24 saniyede tek temas kontrolü.
+- Sağ tıkı tut: önden gelen darbeyi blok; saniyede 9 ve başarılı blokta 18 dayanıklılık.
+- R / üst düğme: karakter, at, hedefler, can, dayanıklılık ve sayacı sıfırlama.
 - Esc / odak kaybı: duraklatma.
 
-## Doğrulama ve sınırlar
+## Talim
 
-TypeScript kontrolü ve üretim derlemesi yapıldı; geliştirme adresi HTTP 200 döndü. Tarayıcıda etkileşim ve görsel test henüz yapılmadı. WebMCP destekleyen tarayıcılar için isteğe bağlı reset_training aracı bulunur; bu ortamda WebMCP çalışma zamanı doğrulaması yapılmadı. İlk oyuncu testinde kamera, duvar çarpışması, ata binme/inme ve at dönüş hissi değerlendirilmelidir.
+Avludaki üç hedef 2,6 metre içindeki ön yaydan hasar alır. Her isabet 34 hasar verir; devrilen hedef 4 saniyede yenilenir. 3 metre yakındaki hedef, turuncu uyarıdan 0,85 saniye sonra karşı vuruş yapar. Öne dönük kalkan yeterli dayanıklılıkla 15 hasarlık darbeyi durdurur. Can tükenince talim 2 saniye sonra sıfırlanır. Sesler tarayıcıda sentezlenir; harici ses/model/doku kullanılmaz.
 
-Geometriler kodla oluşturulur; harici oyun modeli veya doku gerektirmez. Şimdiki çarpışma sistemi düz zemin ve dikdörtgen engeller içindir. At ve karakter modelleri prototip geometrileridir. Üretim ölçeğinde fizik ve online sunucu aşaması ayrıca geliştirilecektir.
+## Doğrulama sınırı
 
-## 0.2 — Hareket hissi
+Yedi otomatik test hareket kurallarını, saldırı koşullarını, menzil/yön kontrolünü ve blok maliyetini kapsar. Tip kontrolü ve üretim derlemesi geçti. 0.3 görsel ve etkileşim testleri henüz yapılmadı. Oyuncu testinde saldırı animasyonu/temas zamanlaması, kalkan yönü ve geri bildirim değerlendirilmelidir. WebMCP reset_training aracı için destekleyen tarayıcıda çalışma zamanı doğrulaması henüz yapılmadı.
 
-Yaya hızlanma ve durma geçişleri, yumuşak yön değişimi, kalça/diz/omuz eklemleri ve mesafeye bağlı adımlar eklendi. At için kademeli hızlanma, frenlemeden geri vitese geçmeme, sürate bağlı dönüş yarıçapı, yürüyüş/dörtnal geçişi ve binici hareketi eklendi. Kamera yumuşak takip ve hafif hız görüş açısı kullanır; at üzerinde fare 1,3 saniye kullanılmazsa sürüş yönüne döner. Odak kaybı hızı sıfırlar.
-
-Hareket kuralları: `node --test lib/movement.test.mjs` (4 test). Kare hızından bağımsız hızlanma, fren/geri sürüş, dönüş ve yön açısı sınırı test edilir. 0.2 tip kontrolü ve derlemesi geçti; oynanışın görsel/etkileşim doğrulaması henüz yapılmadı.
+Düz zemin ve dikdörtgen engeller için basit çarpışma kullanılır. Atlı saldırı ve online sunucu sonraki aşamalardır. Hareketin 0.2 temelinde kademeli hızlanma, mesafeye bağlı eklem animasyonları ve yumuşak kamera bulunur.
