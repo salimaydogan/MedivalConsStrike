@@ -45,3 +45,9 @@ Mobil tarayıcı ana hedef olarak belirlendi. Dokunmatik cihazlarda sol analog h
 Yaya kaçınma telefonda Kaçın düğmesi, klavyede Boşluk ile kullanılır. Yön girişi varsa o yöne, yoksa kamera yönüne göre geriye 0,28 saniyelik hamle yapılır. 25 dayanıklılık harcar ve 0,85 saniye bekleme uygular. Duvar çarpışması korunur; hasar bağışıklığı vermez. At üstünde veya kılıç savururken kullanılamaz. /roadmap adresi HTML kontrol listesine yönlenir. 13 kural testi ve tip kontrolü geçti; gerçek cihaz testi bekliyor.
 
 Oyuncu bulunamazsa botlarla maç gereksinimi yol haritasına eklendi; uygulaması online oda/takım aşamasındadır.
+
+## Mobil arayüz kontrolü — 8 Eylül 2026
+
+Codex tarayıcısında dokunmatik mod seçilerek 390×844 ve 844×390 görünüm kontrol edildi. Kaçınma düğmesi dayanıklılığı 100→75 düşürdü; joystick hareketi, ata binme/inme, düşman darbeleri, canın sıfırlanması, ölüm ekranı ve yeniden doğmada 100 cana dönüş gözlendi. Zemindeki gölge çizgileri düzeltilip yeniden görüntülendi. Bu, gerçek Android/iPhone veya eşzamanlı çoklu dokunma testi değildir.
+
+Başlangıca Dokunmatik / Klavye ve fare seçimi eklendi. Mobil metinler düğme adlarına uyarlandı. Düğmelerin at yakınlığında yer değiştirmesi giderildi; kullanılamayan eylemler sabit yerlerinde devre dışıdır. Son sabit düğme değişikliğinden sonra tarayıcı bağlantısı kesildiği için bu son düzen yeniden görüntülenemedi. Gerçek cihaz, ses, çoklu dokunma ve uzun süreli performans kontrolleri bekliyor.

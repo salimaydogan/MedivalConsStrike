@@ -40,8 +40,8 @@ export default function MobileControls({ input, mounted, near }: { input: TouchI
     </div>
     <div className="touch-actions">{hold(input.sprint,'Hızlan')}{hold(input.guard,'Kalkan')}
       <button className="touch-attack" onPointerDown={e=>{e.preventDefault();input.attack();}}>Kılıç</button>
-      {!mounted&&<button onPointerDown={e=>{e.preventDefault();input.dodge();}}>Kaçın</button>}
-      {(mounted||near)&&<button onClick={input.mount}>{mounted?'Attan in':'Ata bin'}</button>}
+      <button disabled={mounted} onPointerDown={e=>{e.preventDefault();input.dodge();}}>Kaçın</button>
+      <button disabled={!mounted&&!near} onClick={input.mount}>{mounted?'Attan in':near?'Ata bin':'Ata yaklaş'}</button>
     </div>
   </div>;
 }

@@ -11,9 +11,9 @@ import { canAttack, inArc, defend, swordAngle, attackCost, inMountedReach, mount
 type Status = { mounted: boolean; near: boolean; speed: number; distance: number };
 export default function Home() {
   const host = useRef<HTMLDivElement>(null);
-  const commands = useRef({ reset: () => {}, mount: () => {}, play: () => {},pause:()=>{},move:(_x:number,_y:number)=>{},look:(_x:number,_y:number)=>{},attack:()=>{},dodge:()=>{},guard:(_held:boolean)=>{},sprint:(_held:boolean)=>{} });
+  const commands = useRef({ reset: () => {}, mount: () => {}, play: () => {},pause:()=>{},move:(_x:number,_y:number)=>{},look:(_x:number,_y:number)=>{},attack:()=>{},dodge:()=>{},guard:(_held:boolean)=>{},sprint:(_held:boolean)=>{},controlMode:(_touch:boolean)=>{} });
   const [touch,setTouch]=useState(false);
-  useEffect(()=>{const query=matchMedia('(pointer: coarse)');const update=()=>setTouch(query.matches);update();query.addEventListener('change',update);return()=>query.removeEventListener('change',update);},[]);
+
   const [combatUI,setCombatUI]=useState({stamina:100,health:100,hits:0,blocks:0,message:'Hedeflere yaklaş · Sol tıkla saldır',blocking:false,hurt:0,dead:false});
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState('');
@@ -42,13 +42,14 @@ export default function Home() {
     try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
     catch { setError('3B görüntü başlatılamadı. Donanım hızlandırması açık bir masaüstü tarayıcıda tekrar dene.'); return; }
     const root = host.current;
-    const mobile=matchMedia('(pointer: coarse)').matches;renderer.setPixelRatio(Math.min(devicePixelRatio, mobile?1.25:1.7)); renderer.shadowMap.enabled = true;
+    let mobile=matchMedia('(pointer: coarse)').matches;setTouch(mobile);renderer.setPixelRatio(Math.min(devicePixelRatio, mobile?1.25:1.7)); renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap; renderer.setClearColor(0xa6bfca);
     root.appendChild(renderer.domElement);
     const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0xa6bfca, 58, 145);
     const camera = new THREE.PerspectiveCamera(55, 1, .1, 200);
     scene.add(new THREE.HemisphereLight(0xe2f0ff, 0x555637, 2.5));
     const sun = new THREE.DirectionalLight(0xffe4b9, 3); sun.position.set(-20, 35, 18); sun.castShadow = true;
+    sun.shadow.normalBias=.05;sun.shadow.bias=-.00015;
     sun.shadow.mapSize.set(mobile?1024:2048, mobile?1024:2048); Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 48, bottom: -48, far: 100 }); scene.add(sun);
     const mats = new Map<number, THREE.MeshStandardMaterial>();
     const mat = (c: number) => { if (!mats.has(c)) mats.set(c, new THREE.MeshStandardMaterial({ color: c, roughness: .92, flatShading: true })); return mats.get(c)!; };
@@ -173,6 +174,7 @@ export default function Home() {
     };
     const pointerUp=(e:MouseEvent)=>{dragging=false;if(e.button===2)blocking=false;};
     commands.current={reset,mount,play:lock,pause,dodge,
+      controlMode:enabled=>{pause();mobile=enabled;setTouch(enabled);renderer.setPixelRatio(Math.min(devicePixelRatio,mobile?1.25:1.7));sun.shadow.mapSize.set(mobile?1024:2048,mobile?1024:2048);sun.shadow.map?.dispose();sun.shadow.map=null;resize();},
       move:(x,y)=>{touchX=x;touchY=y;},
       look:(x,y)=>{if(!active)return;mouseIdle=0;yaw-=x*.005;pitch=THREE.MathUtils.clamp(pitch+y*.004,.12,1.05);},
       attack:()=>pointerDown({button:0} as MouseEvent),
@@ -266,7 +268,7 @@ export default function Home() {
             if(result.blocked){blockCount++;tone(720,.16,'square',.035);announce('Blok! · −18 dayanıklılık');}
             else{hurt=.75;tone(85,.3,'sawtooth',.12);announce('DARBE ALDIN · −15 CAN');}
             if(health===0){knockout=.001;blocking=false;attackTime=-1;speed=0;velocity.set(0,0,0);keys.clear();announce('Öldün');document.exitPointerLock();}
-          }}else{d.cooldown-=dt;if(d.cooldown<=0){d.windup=.85;announce('Hedef vuracak · Ona dön ve sağ tıkı tut');}}
+          }}else{d.cooldown-=dt;if(d.cooldown<=0){d.windup=.85;announce(mobile?'Hedef vuracak · Ona dön ve Kalkanı tut':'Hedef vuracak · Ona dön ve sağ tıkı tut');}}
         }
 
       }
@@ -321,7 +323,7 @@ export default function Home() {
       camera.position.copy(target).addScaledVector(direction,distance);camera.lookAt(cameraTarget);
       camera.fov=THREE.MathUtils.damp(camera.fov,55+Math.min(actualSpeed/13,1)*7,4,dt);camera.updateProjectionMatrix();
       renderer.render(scene,camera);
-      if(now-lastHud>120){lastHud=now;setStatus({mounted,near:position.distanceTo(horse.position)<3.5,speed:Math.round(actualSpeed*3.6),distance:Math.round(travel)});setCombatUI({stamina:Math.round(stamina),health,hits:hitCount,blocks:blockCount,message:messageTime>0?message:mounted?'Hedef sağında · Sol tık: savur · Shift: hücum':blocking?'Kalkan hazır · Önden gelen darbeleri karşıla':'Sol tık: saldır · Sağ tık: blok',blocking,hurt,dead:health===0});}
+      if(now-lastHud>120){lastHud=now;setStatus({mounted,near:position.distanceTo(horse.position)<3.5,speed:Math.round(actualSpeed*3.6),distance:Math.round(travel)});setCombatUI({stamina:Math.round(stamina),health,hits:hitCount,blocks:blockCount,message:messageTime>0?message:mounted?(mobile?'Hedef sağında · Kılıç ile savur · Hızlan ile hücum':'Hedef sağında · Sol tık: savur · Shift: hücum'):blocking?'Kalkan hazır · Önden gelen darbeleri karşıla':mobile?'Kılıç: saldır · Kalkan: blok · Kaçın: hamle':'Sol tık: saldır · Sağ tık: blok',blocking,hurt,dead:health===0});}
     }frame=requestAnimationFrame(tick);
     return()=>{surfaceResize.disconnect();cancelAnimationFrame(frame);window.removeEventListener('resize',resize);window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',pause);window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',pointerUp);document.removeEventListener('visibilitychange',visibility);document.removeEventListener('pointerlockchange',lockChange);renderer.domElement.removeEventListener('mousedown',pointerDown);renderer.domElement.removeEventListener('contextmenu',contextMenu);void sound?.close().catch(()=>{});dummies.forEach(d=>d.material.dispose());if(document.pointerLockElement===renderer.domElement)document.exitPointerLock();scene.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});mats.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();};
   }, []);
@@ -330,7 +332,7 @@ export default function Home() {
     <header className="topbar"><div className="brand"><span className="sigil">♜</span><div><strong>SINIR KALESİ</strong><small>MOBİL TALİM · 0.6</small></div></div><span className="map-label">KUZEY AVLUSU <i /> SERBEST ANTRENMAN</span><a href="/roadmap.html" style={{color:"#e6bd7c",fontSize:14}}>Yol haritası ↗</a><button onClick={()=>{commands.current.reset();}}>↺ Baştan başla</button></header>
     <aside className="objective"><span className="eyebrow">KILIÇ VE KALKAN</span><h2>Hücumu dene.</h2><p>Atla hedefin solundan geç.<br/>Hedef sağındayken kılıç savur.<br/>Shift ile hızlan; sağ tıkla blokla.</p><p>{combatUI.hits} isabet · {combatUI.blocks} blok</p><div className="progress"><span style={{width:`${Math.min(status.distance/100,1)*100}%`}} /></div><small>{Math.min(status.distance,100)} / 100 m keşfedildi</small></aside>
     <div className="crosshair" aria-hidden="true">·</div>
-    {!playing && !combatUI.dead && <section className="start-panel"><span className="eyebrow">SINIRDA BİR SABAH</span><h1>Kılıcını kuşan.<br/><em>Talime başla.</em></h1><p>Yaya veya atlı talim yap. At üstünde hedefi sağında tutup sol tıkla savur; hızın hasarı artırır. Sağ tıkla önden gelen darbeyi blokla.</p>{error?<p role="alert">{error}</p>:<button className="primary" onClick={()=>commands.current.play()}>Avluya gir <span>→</span></button>}<small>{touch?'Sol çubuk: hareket · Sağ alanı sürükle: kamera. Düğmelerle saldır, blokla ve kaçın. Yatay ekran önerilir.':'WASD: hareket · Fare: kamera · Sol tık: saldır · Sağ tık: blok · Boşluk: kaçın'}</small></section>}
+    {!playing && !combatUI.dead && <section className="start-panel"><span className="eyebrow">SINIRDA BİR SABAH</span><h1>Kılıcını kuşan.<br/><em>Talime başla.</em></h1><p>{touch?'Yaya veya atlı talim yap. Kılıç düğmesiyle saldır; kalkanı basılı tutarak blokla. At üstünde hedefi sağında tut.':'Yaya veya atlı talim yap. Sol tıkla saldır, sağ tıkla blokla. At üstünde hedefi sağında tut.'}</p><label className="control-mode">Kontroller<select value={touch?'touch':'keyboard'} onChange={e=>commands.current.controlMode(e.target.value==='touch')}><option value="touch">Dokunmatik</option><option value="keyboard">Klavye ve fare</option></select></label>{error?<p role="alert">{error}</p>:<button className="primary" onClick={()=>commands.current.play()}>Avluya gir <span>→</span></button>}<small>{touch?'Sol çubuk: hareket · Sağ alanı sürükle: kamera. Düğmelerle saldır, blokla ve kaçın. Yatay ekran önerilir.':'WASD: hareket · Fare: kamera · Sol tık: saldır · Sağ tık: blok · Boşluk: kaçın'}</small></section>}
     {playing&&!touch&&(status.mounted||status.near)&&<button className="interact" onClick={()=>commands.current.mount()}><kbd>E</kbd> {status.mounted?'Attan in':'Ata bin'}</button>}
     <div className="damage-flash" aria-hidden="true" style={{opacity:combatUI.hurt/.75}} />
     {combatUI.hurt>0&&!combatUI.dead&&<div className="damage-number" role="status">−15 CAN</div>}
