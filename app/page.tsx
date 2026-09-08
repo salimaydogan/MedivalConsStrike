@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { approach, turnToward, horseMotion } from '../lib/movement.mjs';
 
 type Status = { mounted: boolean; near: boolean; speed: number; distance: number };
 export default function Home() {
@@ -35,7 +36,7 @@ export default function Home() {
     catch { setError('3B görüntü başlatılamadı. Donanım hızlandırması açık bir masaüstü tarayıcıda tekrar dene.'); return; }
     const root = host.current;
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7)); renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.setClearColor(0xa6bfca);
+    renderer.shadowMap.type = THREE.PCFShadowMap; renderer.setClearColor(0xa6bfca);
     root.appendChild(renderer.domElement);
     const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0xa6bfca, 58, 145);
     const camera = new THREE.PerspectiveCamera(55, 1, .1, 200);
@@ -82,10 +83,15 @@ export default function Home() {
     const player = new THREE.Group(); scene.add(player);
     const torso=box(player,.7,.85,.42,0,1.22,0,0x316f8b);
     box(player,.48,.46,.45,0,1.9,0,0xb9bfc0); box(player,.34,.1,.025,0,1.91,-.24,0x25343b);
-    const legs=[box(player,.23,.65,.27,-.2,.48,0,0x3e4442),box(player,.23,.65,.27,.2,.48,0,0x3e4442)];
-    box(player,.23,.7,.25,-.5,1.2,0,0x9aabb0); box(player,.23,.7,.25,.5,1.2,0,0x9aabb0);
-    box(player,.12,.85,.12,.55,.8,-.3,0xc0c6c2); box(player,.42,.09,.18,.55,1.15,-.3,0xc3a264);
-    box(player,.12,.8,.65,-.64,1.1,-.06,0x315f73);
+    const limb = (parent: THREE.Object3D, x: number, y: number, z: number, length: number, width: number, color: number) => {
+      const pivot = new THREE.Group(); pivot.position.set(x,y,z); parent.add(pivot);
+      box(pivot,width,length,width,0,-length/2,0,color); return pivot;
+    };
+    const legs=[limb(player,-.2,.85,0,.38,.23,0x3e4442),limb(player,.2,.85,0,.38,.23,0x3e4442)];
+    const knees=legs.map(leg=>{const knee=limb(leg,0,-.38,0,.34,.21,0x454b48);box(knee,.25,.14,.4,0,-.33,-.07,0x302f2c);return knee;});
+    const arms=[limb(player,-.5,1.58,0,.65,.23,0x9aabb0),limb(player,.5,1.58,0,.65,.23,0x9aabb0)];
+    box(arms[1],.12,.85,.12,0,-.85,-.2,0xc0c6c2); box(arms[1],.42,.09,.18,0,-.5,-.2,0xc3a264);
+    box(arms[0],.12,.8,.65,-.14,-.4,-.06,0x315f73);
     const horse = new THREE.Group(); scene.add(horse);
     box(horse,.85,.95,1.65,0,1.42,0,0x77523c);
     const neck=box(horse,.52,1.15,.65,0,2,-.77,0x886044); neck.rotation.x=-.3;
@@ -94,22 +100,29 @@ export default function Home() {
     box(horse,.5,.12,.22,0,2.53,-1.47,0x423a30);
     box(horse,1,.13,.9,0,1.95,.12,0x273e48); box(horse,.7,.2,.55,0,2.09,.1,0x654633);
     box(horse,.19,.85,.2,0,1.3,1,0x3d352e);
-    const horseLegs: THREE.Mesh[]=[]; for(const x of [-.32,.32]) for(const z of [-.55,.58]) { horseLegs.push(box(horse,.2,1.1,.22,x,.55,z,0x573f30)); box(horse,.22,.18,.26,x,.09,z,0x332e28); }
+    const horseLegs: THREE.Group[]=[]; const horseKnees: THREE.Group[]=[];
+    for(const x of [-.32,.32]) for(const z of [-.55,.58]) {
+      const leg=limb(horse,x,1.1,z,.52,.2,0x573f30);horseLegs.push(leg);
+      const knee=limb(leg,0,-.52,0,.48,.17,0x634934);horseKnees.push(knee);
+      box(knee,.23,.17,.3,0,-.46,-.03,0x332e28);
+    }
     let mounted=false,active=false,yaw=0,pitch=.38,heading=0,speed=0,travel=0,time=0,last=performance.now(),lastHud=0,frame=0;
     const position=new THREE.Vector3(0,0,21); horse.position.set(2,0,18);
+    const velocity=new THREE.Vector3(); let steering=0, gait=0, gaitWeight=0, mouseIdle=0, cameraReady=false;
+    const cameraTarget=new THREE.Vector3();
     const keys=new Set<string>(); let dragging=false;
     const free=(x:number,z:number,r:number)=>Math.abs(x)<30-r&&Math.abs(z)<30-r&&!obstacles.some(o=>Math.abs(x-o.x)<o.w/2+r&&Math.abs(z-o.z)<o.d/2+r);
     const mount=()=>{
-      if(mounted) { for(const side of [-1,1]) { const x=position.x+Math.cos(heading)*side*2,z=position.z-Math.sin(heading)*side*2; if(free(x,z,.5)){mounted=false;position.set(x,0,z);speed=0;break;} } }
-      else if(position.distanceTo(horse.position)<3.5) { mounted=true;position.copy(horse.position);heading=horse.rotation.y;speed=0; }
+      if(mounted) { for(const side of [-1,1]) { const x=position.x+Math.cos(heading)*side*2,z=position.z-Math.sin(heading)*side*2; if(free(x,z,.5)){mounted=false;position.set(x,0,z);speed=0;velocity.set(0,0,0);steering=0;gaitWeight=0;horse.position.y=0;horse.rotation.x=horse.rotation.z=0;break;} } }
+      else if(position.distanceTo(horse.position)<3.5) { mounted=true;position.copy(horse.position);heading=horse.rotation.y;speed=0;velocity.set(0,0,0);steering=0;gaitWeight=0; }
     };
-    const reset=()=>{mounted=false;position.set(0,0,21);horse.position.set(2,0,18);horse.rotation.y=0;heading=0;yaw=0;speed=0;travel=0;keys.clear();};
+    const reset=()=>{mounted=false;position.set(0,0,21);horse.position.set(2,0,18);horse.rotation.y=0;heading=0;yaw=0;speed=0;travel=0;velocity.set(0,0,0);steering=0;gait=0;gaitWeight=0;cameraReady=false;horse.rotation.x=horse.rotation.z=0;keys.clear();};
     const lock=()=>{active=true;setPlaying(true);const p=renderer.domElement.requestPointerLock?.();p?.catch(()=>{});};
     commands.current={reset,mount,play:lock};
-    const down=(e:KeyboardEvent)=>{if(!active)return;if(['KeyW','KeyA','KeyS','KeyD','Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys.add(e.code);if(e.code==='KeyE'&&!e.repeat)mount();if(e.code==='KeyR'&&!e.repeat)reset();if(e.code==='Escape'){active=false;keys.clear();setPlaying(false);}};
+    const down=(e:KeyboardEvent)=>{if(!active)return;if(['KeyW','KeyA','KeyS','KeyD','Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys.add(e.code);if(e.code==='KeyE'&&!e.repeat)mount();if(e.code==='KeyR'&&!e.repeat)reset();if(e.code==='Escape')pause();};
     const up=(e:KeyboardEvent)=>keys.delete(e.code);
-    const pause=()=>{keys.clear();active=false;dragging=false;setPlaying(false);};
-    const move=(e:MouseEvent)=>{if(active&&(document.pointerLockElement===renderer.domElement||dragging)){yaw-=e.movementX*.003;pitch=THREE.MathUtils.clamp(pitch+e.movementY*.002,.12,1.05);}};
+    const pause=()=>{keys.clear();active=false;dragging=false;speed=0;velocity.set(0,0,0);steering=0;setPlaying(false);};
+    const move=(e:MouseEvent)=>{if(active&&(document.pointerLockElement===renderer.domElement||dragging)){mouseIdle=0;yaw-=e.movementX*.003;pitch=THREE.MathUtils.clamp(pitch+e.movementY*.002,.12,1.05);}};
     const pointerDown=()=>{dragging=true;}; const pointerUp=()=>{dragging=false;};
     const lockChange=()=>{if(!document.pointerLockElement)pause();};
     const visibility=()=>{if(document.hidden)pause();};
@@ -120,25 +133,75 @@ export default function Home() {
       frame=requestAnimationFrame(tick);const dt=Math.min((now-last)/1000,.04);last=now;time+=dt;
       const forward=active?Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown')):0;
       const side=active?Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')):0;
-      let dx=0,dz=0;
-      if(mounted){const target=forward*(keys.has('ShiftLeft')?12:7);speed=THREE.MathUtils.damp(speed,target,2.5,dt);if(Math.abs(speed)>.2)heading-=side*dt*1.5*Math.sign(speed);dx=-Math.sin(heading)*speed*dt;dz=-Math.cos(heading)*speed*dt;}
-      else{const length=Math.hypot(forward,side);speed=length?(keys.has('ShiftLeft')?6:3.5):0;if(length){dx=(side*Math.cos(yaw)-forward*Math.sin(yaw))/length*speed*dt;dz=(-forward*Math.cos(yaw)-side*Math.sin(yaw))/length*speed*dt;heading=Math.atan2(-dx,-dz);}}
-      const radius=mounted?1.2:.48;const old=position.clone();if(free(position.x+dx,position.z,radius))position.x+=dx;if(free(position.x,position.z+dz,radius))position.z+=dz;travel+=old.distanceTo(position);
-      if(mounted){horse.position.copy(position);horse.rotation.y=heading;}
-      player.position.copy(position);player.position.y=mounted?1.25:0;player.rotation.y=heading;
-      for(let i=0;i<2;i++)legs[i].rotation.x=mounted?-.8:Math.sin(time*10+i*Math.PI)*Math.min(speed/6,1)*.55;
-      for(let i=0;i<4;i++)horseLegs[i].rotation.x=mounted?Math.sin(time*10+(i%3)*Math.PI)*Math.min(Math.abs(speed)/7,1)*.5:0;
-      torso.position.y=1.22+(mounted?Math.sin(time*10)*Math.min(Math.abs(speed)/100,.05):0);
-      const target=position.clone().add(new THREE.Vector3(0,mounted?2.6:1.5,0));const offset=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
-      ray.set(target,offset);const hits=ray.intersectObjects(wallMeshes);const distance=Math.min(mounted?8:6,hits.length?Math.max(.6,hits[0].distance-.35):20);camera.position.copy(target).addScaledVector(offset,distance);camera.lookAt(target);
+      let dx=0,dz=0; const sprint=keys.has('ShiftLeft')||keys.has('ShiftRight');
+      const previousSpeed=speed;
+      if(mounted){
+        const motion=horseMotion(speed,steering,forward,side,sprint,dt);
+        speed=motion.speed;steering=motion.steering;heading+=motion.turn;
+        dx=-Math.sin(heading)*speed*dt;dz=-Math.cos(heading)*speed*dt;
+      }else{
+        const length=Math.hypot(forward,side), maxSpeed=sprint?6:3.3;
+        const tx=length?(side*Math.cos(yaw)-forward*Math.sin(yaw))/length*maxSpeed:0;
+        const tz=length?(-forward*Math.cos(yaw)-side*Math.sin(yaw))/length*maxSpeed:0;
+        const delta=new THREE.Vector3(tx-velocity.x,0,tz-velocity.z);
+        const limit=(length?26:34)*dt;if(delta.length()>limit)delta.setLength(limit);velocity.add(delta);
+        dx=velocity.x*dt;dz=velocity.z*dt;speed=velocity.length();
+        if(speed>.08)heading=turnToward(heading,Math.atan2(-velocity.x,-velocity.z),14,dt);
+      }
+      const radius=mounted?1.2:.48;const old=position.clone();
+      if(free(position.x+dx,position.z,radius))position.x+=dx;else if(!mounted)velocity.x=0;
+      if(free(position.x,position.z+dz,radius))position.z+=dz;else if(!mounted)velocity.z=0;
+      const moved=old.distanceTo(position);travel+=moved;const actualSpeed=moved/dt;
+      if(mounted && moved<Math.hypot(dx,dz)*.3) speed=0;
+      const amount=Math.min(actualSpeed/(mounted?7:3.3),1);
+      gaitWeight=THREE.MathUtils.damp(gaitWeight,amount,12,dt);
+      const gallop=THREE.MathUtils.smoothstep(actualSpeed,7,12);
+      gait+=moved*(mounted?THREE.MathUtils.lerp(2.8,1.9,gallop):3.7);
+      const bounce=mounted?Math.sin(gait*2)*(.035+gallop*.065)*gaitWeight:Math.cos(gait*2)*.035*gaitWeight;
+      if(mounted){horse.position.copy(position);horse.position.y=bounce;horse.rotation.y=heading;
+        horse.rotation.z=THREE.MathUtils.damp(horse.rotation.z,steering*Math.min(actualSpeed/13,1)*.13,7,dt);
+        horse.rotation.x=THREE.MathUtils.damp(horse.rotation.x,Math.sin(gait)*gallop*.045*gaitWeight+THREE.MathUtils.clamp((speed-previousSpeed)/dt*.005,-.05,.05),8,dt);
+      }
+      player.position.copy(position);player.position.y=mounted?1.25+bounce:Math.max(0,bounce);
+      player.rotation.y=heading;player.rotation.x=THREE.MathUtils.damp(player.rotation.x,mounted?-.08*gaitWeight:actualSpeed*.012,10,dt);
+      player.rotation.z=mounted?horse.rotation.z*.65:Math.sin(gait)*.025*gaitWeight;
+      for(let i=0;i<2;i++){
+        const stride=Math.sin(gait+i*Math.PI);
+        legs[i].rotation.x=mounted?-.95:stride*.65*gaitWeight;
+        legs[i].rotation.z=mounted?(i===0?-.28:.28):0;
+        knees[i].rotation.x=mounted?1.1:Math.max(0,-stride)*.85*gaitWeight;
+        arms[i].rotation.x=mounted?-.65:-stride*.5*gaitWeight;
+      }
+      const trotPhases=[0,Math.PI,Math.PI,0],gallopPhases=[0,1.5,.45,1.95];
+      for(let i=0;i<4;i++){
+        const phase=gait+THREE.MathUtils.lerp(trotPhases[i],gallopPhases[i],gallop);
+        const weight=mounted?gaitWeight:0;
+        horseLegs[i].rotation.x=Math.sin(phase)*(.55+gallop*.25)*weight;
+        horseKnees[i].rotation.x=Math.max(0,-Math.sin(phase))*.9*weight;
+      }
+      neck.rotation.x=-.3+(mounted?Math.sin(gait*2)*.035*gaitWeight:0);
+      torso.position.y=1.22;
+      mouseIdle+=dt;
+      if(mounted&&active&&actualSpeed>.5&&mouseIdle>1.3)yaw=turnToward(yaw,heading,2,dt);
+      const target=position.clone().add(new THREE.Vector3(0,mounted?2.6:1.5,0));
+      if(!cameraReady){cameraTarget.copy(target);cameraReady=true;}else cameraTarget.lerp(target,1-Math.exp(-12*dt));
+      const offset=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
+      const wantedDistance=(mounted?7.5:5.8)+Math.min(actualSpeed/13,1)*1.2;
+      // Cast along the final smoothed camera ray so follow lag cannot pull the camera through walls.
+      const desired=cameraTarget.clone().addScaledVector(offset,wantedDistance);
+      const direction=desired.clone().sub(target);const wanted=direction.length();direction.normalize();
+      ray.set(target,direction);const hits=ray.intersectObjects(wallMeshes);
+      const distance=Math.min(wanted,hits.length?Math.max(.4,hits[0].distance-.35):wanted);
+      camera.position.copy(target).addScaledVector(direction,distance);camera.lookAt(cameraTarget);
+      camera.fov=THREE.MathUtils.damp(camera.fov,55+Math.min(actualSpeed/13,1)*7,4,dt);camera.updateProjectionMatrix();
       renderer.render(scene,camera);
-      if(now-lastHud>120){lastHud=now;setStatus({mounted,near:position.distanceTo(horse.position)<3.5,speed:Math.round(Math.abs(speed)*3.6),distance:Math.round(travel)});}
+      if(now-lastHud>120){lastHud=now;setStatus({mounted,near:position.distanceTo(horse.position)<3.5,speed:Math.round(actualSpeed*3.6),distance:Math.round(travel)});}
     }frame=requestAnimationFrame(tick);
     return()=>{cancelAnimationFrame(frame);window.removeEventListener('resize',resize);window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',pause);window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',pointerUp);document.removeEventListener('visibilitychange',visibility);document.removeEventListener('pointerlockchange',lockChange);renderer.domElement.removeEventListener('mousedown',pointerDown);if(document.pointerLockElement===renderer.domElement)document.exitPointerLock();scene.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});mats.forEach(m=>m.dispose());renderer.dispose();renderer.domElement.remove();};
   }, []);
   return <main className="game-shell">
     <div ref={host} className="viewport" aria-label="Üç boyutlu kale antrenman alanı" />
-    <header className="topbar"><div className="brand"><span className="sigil">♜</span><div><strong>SINIR KALESİ</strong><small>HAREKET PROTOTİPİ · 0.1</small></div></div><span className="map-label">KUZEY AVLUSU <i /> SERBEST ANTRENMAN</span><button onClick={()=>{commands.current.reset();}}>↺ Baştan başla</button></header>
+    <header className="topbar"><div className="brand"><span className="sigil">♜</span><div><strong>SINIR KALESİ</strong><small>HAREKET PROTOTİPİ · 0.2</small></div></div><span className="map-label">KUZEY AVLUSU <i /> SERBEST ANTRENMAN</span><button onClick={()=>{commands.current.reset();}}>↺ Baştan başla</button></header>
     <aside className="objective"><span className="eyebrow">İLK KEŞİF</span><h2>Kaleyi tanı.</h2><p>Avluda dolaş, atına bin ve<br/>açık alanda hız kazan.</p><div className="progress"><span style={{width:`${Math.min(status.distance/100,1)*100}%`}} /></div><small>{Math.min(status.distance,100)} / 100 m keşfedildi</small></aside>
     <div className="crosshair" aria-hidden="true">·</div>
     {!playing && <section className="start-panel"><span className="eyebrow">SINIRDA BİR SABAH</span><h1>Atına bin.<br/><em>Avlu seni bekliyor.</em></h1><p>İlk adım: hareketi hisset.<br/>Bu alan tek oyunculu bir deneme; savaş ve online maçlar sonraki aşamada.</p>{error?<p role="alert">{error}</p>:<button className="primary" onClick={()=>commands.current.play()}>Avluya gir <span>→</span></button>}<small>Masaüstü · Klavye ve fare<br/>Fare kilidi desteklenmezse basılı tutup sürükle.</small></section>}
