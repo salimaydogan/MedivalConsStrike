@@ -8,7 +8,9 @@ import { turnToward } from '../lib/movement.mjs';
 import {stepPlayerMotion} from '../lib/player-motion.mjs';
 import {WORLD_SOLIDS,TARGET_POSITIONS,isFree} from '../lib/world.mjs';
 
-import { canAttack, inArc, defend, swordAngle, attackCost, inMountedReach, mountedDamage, ATTACK_DURATION, HIT_TIME } from '../lib/combat.mjs';
+import { canAttack, swordAngle, attackCost, ATTACK_DURATION } from '../lib/combat.mjs';
+
+import {stepTrainingCombat} from '../lib/training-combat.mjs';
 
 type Status = { mounted: boolean; near: boolean; speed: number; distance: number };
 export default function Home() {
@@ -212,43 +214,20 @@ export default function Home() {
         knees[i].rotation.x=mounted?1.1:Math.max(0,-stride)*.85*gaitWeight;
         arms[i].rotation.x=mounted?-.65:-stride*.5*gaitWeight;
       }
-      if(active&&health>0){
-        messageTime=Math.max(0,messageTime-dt);regenDelay=Math.max(0,regenDelay-dt);
-        if(blocking){stamina=Math.max(0,stamina-dt*9);regenDelay=.55;if(stamina===0){blocking=false;announce('Kalkan düştü · Dinlen');}}
-        else if(attackTime<0&&regenDelay===0)stamina=Math.min(100,stamina+dt*24);
-        if(attackTime>=0){
-          attackTime+=dt;
-          if(!hitChecked&&attackTime>=(mounted?.18:HIT_TIME)&&attackTime<=(mounted?.4:ATTACK_DURATION)){
-            if(!mounted)hitChecked=true;
-            const candidate=dummies.filter(d=>d.hp>0&&(mounted?inMountedReach:inArc)(position.x,position.z,heading,d.group.position.x,d.group.position.z))
-              .sort((a,b)=>position.distanceTo(a.group.position)-position.distanceTo(b.group.position))[0];
-            if(candidate){
-              // Test the segment against solid geometry; the target itself is the final contact.
-              const from=position.clone().setY(1.45),to=candidate.group.position.clone().setY(1.45),dir=to.clone().sub(from);
-              ray.set(from,dir.clone().normalize());const obstruction=ray.intersectObjects(wallMeshes)[0];
-              if(!obstruction||obstruction.distance>dir.length()){
-                hitChecked=true;const damage=mounted?mountedDamage(speed>0?actualSpeed:0):34;candidate.hp=Math.max(0,candidate.hp-damage);candidate.flash=.3;hitCount++;tone(115,.12,'triangle',.13);
-                announce(candidate.hp===0?'Hedef devrildi · 4 saniyede yenilenir':(mounted?'Atlı isabet · −':'İsabet · −')+damage);
-                if(candidate.hp===0){candidate.respawn=4;candidate.windup=0;}
-              }
-            }else if(!mounted)announce('Iska · Hedefe yaklaş ve kamerayı çevir');
-          }
-          if(attackTime>=ATTACK_DURATION){if(mounted&&!hitChecked)announce('Iska · Hedefi sağında tut');attackTime=-1;}
+      if(active&&health>0)messageTime=Math.max(0,messageTime-dt);
+      const combat=stepTrainingCombat({active,health,stamina,blocking,attackTime,hitChecked,regenDelay,hitCount,blockCount,mounted,x:position.x,z:position.z,heading,speed,actualSpeed},dummies.map(d=>({x:d.group.position.x,z:d.group.position.z,hp:d.hp,flash:d.flash,cooldown:d.cooldown,windup:d.windup,respawn:d.respawn})),dt);
+      ({health,stamina,blocking,attackTime,hitChecked,regenDelay,hitCount,blockCount}=combat.player);
+      combat.targets.forEach((t: {hp:number;flash:number;cooldown:number;windup:number;respawn:number},i:number)=>Object.assign(dummies[i],t));
+      for(const event of combat.events){
+        switch(event.type){
+          case 'exhausted':announce('Kalkan düştü · Dinlen');break;
+          case 'hit':tone(115,.12,'triangle',.13);announce(event.killed?'Hedef devrildi · 4 saniyede yenilenir':(mounted?'Atlı isabet · −':'İsabet · −')+event.damage);break;
+          case 'miss':announce(mounted?'Iska · Hedefi sağında tut':'Iska · Hedefe yaklaş ve kamerayı çevir');break;
+          case 'block':tone(720,.16,'square',.035);announce('Blok! · −18 dayanıklılık');break;
+          case 'hurt':hurt=.75;tone(85,.3,'sawtooth',.12);announce('DARBE ALDIN · −15 CAN');break;
+          case 'warning':announce(mobile?'Hedef vuracak · Ona dön ve Kalkanı tut':'Hedef vuracak · Ona dön ve sağ tıkı tut');break;
+          case 'death':knockout=.001;speed=0;velocity.set(0,0,0);keys.clear();announce('Öldün');document.exitPointerLock();break;
         }
-        for(const d of dummies){
-          d.flash=Math.max(0,d.flash-dt);
-          if(d.hp===0){d.respawn-=dt;if(d.respawn<=0){d.hp=100;d.cooldown=1.5;}continue;}
-          const nearby=knockout===0&&position.distanceTo(d.group.position)<3;
-          if(!nearby){d.windup=0;d.cooldown=1.3;continue;}
-          if(d.windup>0){d.windup-=dt;if(d.windup<=0){
-            const result=defend(stamina,blocking,inArc(position.x,position.z,heading,d.group.position.x,d.group.position.z,3,.25));
-            stamina=result.stamina;health=Math.max(0,health-result.damage);regenDelay=.8;d.cooldown=2.2;
-            if(result.blocked){blockCount++;tone(720,.16,'square',.035);announce('Blok! · −18 dayanıklılık');}
-            else{hurt=.75;tone(85,.3,'sawtooth',.12);announce('DARBE ALDIN · −15 CAN');}
-            if(health===0){knockout=.001;blocking=false;attackTime=-1;speed=0;velocity.set(0,0,0);keys.clear();announce('Öldün');document.exitPointerLock();}
-          }}else{d.cooldown-=dt;if(d.cooldown<=0){d.windup=.85;announce(mobile?'Hedef vuracak · Ona dön ve Kalkanı tut':'Hedef vuracak · Ona dön ve sağ tıkı tut');}}
-        }
-
       }
       hurt=Math.max(0,hurt-dt);
       if(health===0)knockout+=dt;

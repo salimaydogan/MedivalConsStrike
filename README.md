@@ -59,3 +59,6 @@ Başlangıca Dokunmatik / Klavye ve fare seçimi eklendi. Mobil metinler düğme
 `parseMovementMessage` ilerideki ağ giriş sınırı için yalnızca hareket niyetini kabul eder; konum, can, hız veya istemci zaman adımını kabul etmez. Bu aşamada ağ sunucusu, oturum kimliği, paket sıralaması veya hız sınırlaması yoktur. Bunlar oda sunucusunun sorumluluğunda geliştirilecektir. Savaşın zamanlama/durum akışı henüz görüntüleme dosyasındadır.
 
 20 test: kayıtlı girdilerin tekrarı, analog/çapraz hız, ince duvar, harita sınırı, ölü/duraklatılmış hareket, geçersiz ağ girdisi ve zaman adımı dahil. Son değişiklik sonrası tarayıcıda oynanış tekrar testi yapılmadı; tip kontrolü ve derleme geçti.
+
+## Shared training combat (9 September)
+Combat timing, regeneration, directional defense, damage and target respawn now run in a serializable pure simulation. Scene code consumes events for sound and damage feedback. Solid obstacles block strikes in both directions; death ends further attacks in the same step. Input dispatch remains in the browser; this is not an authoritative online server or moving bot implementation. 26 rule tests pass; real-device and network verification remain pending.
