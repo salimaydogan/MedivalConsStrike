@@ -29,3 +29,7 @@ Düz zemin ve dikdörtgen engeller için basit çarpışma kullanılır. Atlı s
 
 ## 0.4 düzeltmeleri
 Kılıç ve kalkan ileri yönde kaldırılır. Hasar kırmızı ekran kenarı, can kaybı yazısı ve beden tepkisiyle gösterilir. Can sıfırlandığında karakter yere düşer; otomatik sıfırlama yerine Yeniden doğ düğmesi kullanılır. Sekiz kural testi ve tip kontrolü geçti. Görsel oynanış doğrulaması henüz yapılmadı.
+
+## 0.5 — Atlı savaş
+
+At üstünde sol tık sağ yana kılıç savurur (32 dayanıklılık). Hedef sağ tarafta ve 3,2 metre içinde olmalıdır. 0,18–0,4 saniye temas penceresinde tek hedefe tek vuruş uygulanır. Gerçek ileri hıza bağlı hasar 34–60 arasındadır; geri sürüş bonus vermez. Saldırı atın yönünü kameraya çevirmeden sürüşü korur. Atlı blok ve hedefin biniciye karşı vuruşu açıktır. On kural testi ve tip kontrolü geçti; tarayıcıda görsel oynanış doğrulaması henüz yapılmadı.
