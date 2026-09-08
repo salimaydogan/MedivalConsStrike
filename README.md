@@ -51,3 +51,11 @@ Oyuncu bulunamazsa botlarla maç gereksinimi yol haritasına eklendi; uygulamas�
 Codex tarayıcısında dokunmatik mod seçilerek 390×844 ve 844×390 görünüm kontrol edildi. Kaçınma düğmesi dayanıklılığı 100→75 düşürdü; joystick hareketi, ata binme/inme, düşman darbeleri, canın sıfırlanması, ölüm ekranı ve yeniden doğmada 100 cana dönüş gözlendi. Zemindeki gölge çizgileri düzeltilip yeniden görüntülendi. Bu, gerçek Android/iPhone veya eşzamanlı çoklu dokunma testi değildir.
 
 Başlangıca Dokunmatik / Klavye ve fare seçimi eklendi. Mobil metinler düğme adlarına uyarlandı. Düğmelerin at yakınlığında yer değiştirmesi giderildi; kullanılamayan eylemler sabit yerlerinde devre dışıdır. Son sabit düğme değişikliğinden sonra tarayıcı bağlantısı kesildiği için bu son düzen yeniden görüntülenemedi. Gerçek cihaz, ses, çoklu dokunma ve uzun süreli performans kontrolleri bekliyor.
+
+## Ortak hareket motoru
+
+`lib/world.mjs` kale katı geometrisi, hedef konumları ve çarpışma sınırlarını paylaşır. `lib/player-motion.mjs` DOM/Three.js kullanmadan yaya, atlı ve kaçınma hareketini işler; tarayıcı bu modülü kullanır. Küçük çarpışma adımları hızlı hareketin ince engelleri atlamasını önler. Kamera ve hareket aynı katı harita verisini kullanır.
+
+`parseMovementMessage` ilerideki ağ giriş sınırı için yalnızca hareket niyetini kabul eder; konum, can, hız veya istemci zaman adımını kabul etmez. Bu aşamada ağ sunucusu, oturum kimliği, paket sıralaması veya hız sınırlaması yoktur. Bunlar oda sunucusunun sorumluluğunda geliştirilecektir. Savaşın zamanlama/durum akışı henüz görüntüleme dosyasındadır.
+
+20 test: kayıtlı girdilerin tekrarı, analog/çapraz hız, ince duvar, harita sınırı, ölü/duraklatılmış hareket, geçersiz ağ girdisi ve zaman adımı dahil. Son değişiklik sonrası tarayıcıda oynanış tekrar testi yapılmadı; tip kontrolü ve derleme geçti.

@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import MobileControls from '../components/mobile-controls';
-import {canDodge,dodgeDirection,DODGE_COST,DODGE_DURATION,DODGE_SPEED} from '../lib/dodge.mjs';
+import {canDodge,dodgeDirection,DODGE_COST,DODGE_DURATION} from '../lib/dodge.mjs';
 import * as THREE from 'three';
-import { turnToward, horseMotion } from '../lib/movement.mjs';
+import { turnToward } from '../lib/movement.mjs';
+import {stepPlayerMotion} from '../lib/player-motion.mjs';
+import {WORLD_SOLIDS,TARGET_POSITIONS,isFree} from '../lib/world.mjs';
 
 import { canAttack, inArc, defend, swordAngle, attackCost, inMountedReach, mountedDamage, ATTACK_DURATION, HIT_TIME } from '../lib/combat.mjs';
 
@@ -56,29 +58,21 @@ export default function Home() {
     const box = (parent: THREE.Object3D, w: number, h: number, d: number, x: number, y: number, z: number, c: number) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c)); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
     };
-    const obstacles: { x: number; z: number; w: number; d: number }[] = [];
-    const solid = (w: number,h: number,d: number,x: number,z: number,c = 0x777e78) => { box(scene,w,h,d,x,h/2,z,c); obstacles.push({x,z,w,d}); };
+    const solidMeshes=WORLD_SOLIDS.map(o=>box(scene,o.w,o.h,o.d,o.x,o.h/2,o.z,o.color));
     box(scene, 240, .3, 240, 0, -.2, 0, 0x6f8060);
     box(scene, 62, .12, 62, 0, -.02, 0, 0xaca381);
     box(scene, 8, .03, 57, 0, .06, 0, 0xc4b99a);
     box(scene, 56, .03, 7, 0, .07, 0, 0xbab092);
-    for (const x of [-32, 32]) solid(2, 7, 66, x, 0);
-    for (const z of [-32,32]) { solid(25,7,2,-20,z); solid(25,7,2,20,z); solid(14,3,2,0,z); }
     for (let n = -30; n <= 30; n += 3) for (const s of [-1,1]) {
       box(scene,1.5,1.2,2,n,7.6,s*32,0x858b80); box(scene,2,1.2,1.5,s*32,7.6,n,0x858b80);
     }
     for (const x of [-30,30]) for (const z of [-30,30]) {
-      solid(6,11,6,x,z,0x838a81);
       const roof = new THREE.Mesh(new THREE.ConeGeometry(5,5,4), mat(z > 0 ? 0x284e65 : 0x8f4237)); roof.position.set(x,13.5,z); roof.rotation.y = Math.PI/4; scene.add(roof);
     }
     for (const z of [-29,29]) {
       box(scene,.16,8,.16,-5,4,z,0x594b36);
       box(scene,2.6,3,.12,-3.7,6,z,z>0?0x327795:0xad4f40);
       box(scene,8,.05,4,0,.1,z,z>0?0x426e7b:0x985c4c);
-    }
-    for (const x of [-18,18]) for (const z of [-13,13]) {
-      solid(8,2.7,2,x,z); solid(2,2.7,5,x+(x>0?3:-3),z+2);
-      solid(2,1.5,2,x-3,z+5,0x806345);
     }
     for(let i=0;i<40;i++) {
       const a=i*2.4, r=49+(i%6)*7, x=Math.sin(a)*r,z=Math.cos(a)*r;
@@ -127,7 +121,7 @@ export default function Home() {
       osc.connect(gain);gain.connect(sound.destination);osc.start();osc.stop(sound.currentTime+duration);osc.onended=()=>{osc.disconnect();gain.disconnect();};
     };
     const announce=(text:string)=>{message=text;messageTime=1.8;};
-    const dummies=[[-5,11],[0,7],[5,11]].map(([x,z])=>{
+    const dummies=TARGET_POSITIONS.map(([x,z])=>{
       const group=new THREE.Group();group.position.set(x,0,z);scene.add(group);
       box(group,1.6,.15,1.6,0,.1,0,0x65583f);box(group,.22,1.9,.22,0,1,0,0x715237);
       const body=box(group,.85,.9,.55,0,1.45,0,0xb19558);
@@ -136,7 +130,6 @@ export default function Home() {
       box(group,1.65,.18,.2,0,1.62,0,0x82633f);
       const baton=new THREE.Group();baton.position.set(-.75,1.65,0);group.add(baton);box(baton,.14,.95,.14,0,-.4,0,0x624a36);
       box(group,1.2,.12,.09,0,2.65,0,0x423d31);const bar=box(group,1.15,.08,.1,0,2.65,.02,0x8cc482);
-      obstacles.push({x,z,w:.95,d:.7});
       return {group,body,material,baton,bar,hp:100,flash:0,cooldown:1.5,windup:0,respawn:0};
     });
     let mounted=false,active=false,yaw=0,pitch=.38,heading=0,speed=0,travel=0,time=0,last=performance.now(),lastHud=0,frame=0;
@@ -144,7 +137,7 @@ export default function Home() {
     const velocity=new THREE.Vector3(); let steering=0, gait=0, gaitWeight=0, mouseIdle=0, cameraReady=false;
     const cameraTarget=new THREE.Vector3();
     const keys=new Set<string>(); let dragging=false;let touchX=0,touchY=0;
-    const free=(x:number,z:number,r:number)=>Math.abs(x)<30-r&&Math.abs(z)<30-r&&!obstacles.some(o=>Math.abs(x-o.x)<o.w/2+r&&Math.abs(z-o.z)<o.d/2+r);
+    const free=isFree;
     const mount=()=>{
       if(attackTime>=0||blocking||knockout>0||dodgeLeft>0)return;
       if(mounted) { for(const side of [-1,1]) { const x=position.x+Math.cos(heading)*side*2,z=position.z-Math.sin(heading)*side*2; if(free(x,z,.5)){mounted=false;position.set(x,0,z);speed=0;velocity.set(0,0,0);steering=0;gaitWeight=0;horse.position.y=0;horse.rotation.x=horse.rotation.z=0;break;} } }
@@ -187,34 +180,19 @@ export default function Home() {
     const resize=()=>{renderer.setSize(root.clientWidth,root.clientHeight);camera.aspect=root.clientWidth/root.clientHeight;camera.updateProjectionMatrix();};resize();
     const surfaceResize=new ResizeObserver(resize);surfaceResize.observe(root);
     window.addEventListener('resize',resize);window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',pause);document.addEventListener('visibilitychange',visibility);document.addEventListener('pointerlockchange',lockChange);window.addEventListener('mousemove',move);renderer.domElement.addEventListener('mousedown',pointerDown);window.addEventListener('mouseup',pointerUp);
-    const ray=new THREE.Raycaster(); const wallMeshes=scene.children.filter(o=>o instanceof THREE.Mesh && o.geometry instanceof THREE.BoxGeometry && o.position.y>1 && Math.abs(o.position.x)>10);
+    const ray=new THREE.Raycaster(); const wallMeshes=solidMeshes;
     function tick(now:number){
       frame=requestAnimationFrame(tick);const dt=Math.max(.001,Math.min((now-last)/1000,.04));last=now;time+=dt;
       const forward=active?THREE.MathUtils.clamp(touchY+Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown')),-1,1):0;
       const side=active?THREE.MathUtils.clamp(touchX+Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')),-1,1):0;
-      let dx=0,dz=0; const sprint=!blocking&&(mounted||attackTime<0)&&(keys.has('ShiftLeft')||keys.has('ShiftRight'));
       const previousSpeed=speed;
-      if(mounted){
-        const motion=horseMotion(speed,steering,forward,side,sprint,dt);
-        speed=motion.speed;steering=motion.steering;heading+=motion.turn;
-        dx=-Math.sin(heading)*speed*dt;dz=-Math.cos(heading)*speed*dt;
-      }else{
-        const length=Math.hypot(forward,side), maxSpeed=knockout>0?0:blocking?1.65:attackTime>=0?2:sprint?6:3.3;
-        const tx=length?(side*Math.cos(yaw)-forward*Math.sin(yaw))/Math.max(1,length)*maxSpeed:0;
-        const tz=length?(-forward*Math.cos(yaw)-side*Math.sin(yaw))/Math.max(1,length)*maxSpeed:0;
-        const delta=new THREE.Vector3(tx-velocity.x,0,tz-velocity.z);
-        const limit=(length?26:34)*dt;if(delta.length()>limit)delta.setLength(limit);velocity.add(delta);
-        dx=velocity.x*dt;dz=velocity.z*dt;speed=velocity.length();
-        if(blocking||attackTime>=0)heading=turnToward(heading,yaw,18,dt);
-        else if(speed>.08)heading=turnToward(heading,Math.atan2(-velocity.x,-velocity.z),14,dt);
-      }
+      const motion=stepPlayerMotion({x:position.x,z:position.z,vx:velocity.x,vz:velocity.z,heading,speed,steering,
+        active,health,mounted,blocking,attacking:attackTime>=0,dodgeLeft,dodgeX:dodgeVector.x,dodgeZ:dodgeVector.z},
+        {forward,side,yaw,sprint:keys.has('ShiftLeft')||keys.has('ShiftRight')},dt);
+      position.set(motion.x,0,motion.z);velocity.set(motion.vx,0,motion.vz);
+      heading=motion.heading;speed=motion.speed;steering=motion.steering;dodgeLeft=motion.dodgeLeft;
       if(active)dodgeCooldown=Math.max(0,dodgeCooldown-dt);
-      if(dodgeLeft>0&&active){const slice=Math.min(dt,dodgeLeft);dx=dodgeVector.x*DODGE_SPEED*slice;dz=dodgeVector.z*DODGE_SPEED*slice;dodgeLeft=Math.max(0,dodgeLeft-slice);velocity.set(0,0,0);}
-      const radius=mounted?1.2:.48;const old=position.clone();
-      if(free(position.x+dx,position.z,radius))position.x+=dx;else if(!mounted)velocity.x=0;
-      if(free(position.x,position.z+dz,radius))position.z+=dz;else if(!mounted)velocity.z=0;
-      const moved=old.distanceTo(position);travel+=moved;const actualSpeed=moved/dt;
-      if(mounted && moved<Math.hypot(dx,dz)*.3) speed=0;
+      const {moved,actualSpeed}=motion;travel+=moved;
       const amount=Math.min(actualSpeed/(mounted?7:3.3),1);
       gaitWeight=THREE.MathUtils.damp(gaitWeight,amount,12,dt);
       const gallop=THREE.MathUtils.smoothstep(actualSpeed,7,12);
