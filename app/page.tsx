@@ -94,7 +94,8 @@ export default function Home() {
     const knees=legs.map(leg=>{const knee=limb(leg,0,-.38,0,.34,.21,0x454b48);box(knee,.25,.14,.4,0,-.33,-.07,0x302f2c);return knee;});
     const arms=[limb(player,-.5,1.58,0,.65,.23,0x9aabb0),limb(player,.5,1.58,0,.65,.23,0x9aabb0)];
     box(arms[1],.12,.85,.12,0,-.85,-.2,0xc0c6c2); box(arms[1],.42,.09,.18,0,-.5,-.2,0xc3a264);
-    box(arms[0],.12,.8,.65,-.14,-.4,-.06,0x315f73);
+    const shield=box(arms[0],.12,.8,.65,-.14,-.4,-.06,0x315f73);
+    const shieldFront=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);
     const horse = new THREE.Group(); scene.add(horse);
     box(horse,.85,.95,1.65,0,1.42,0,0x77523c);
     const neck=box(horse,.52,1.15,.65,0,2,-.77,0x886044); neck.rotation.x=-.3;
@@ -275,6 +276,13 @@ export default function Home() {
         player.rotation.x=-Math.PI/2*fall;player.rotation.z=.16*fall;player.position.y=.25*fall;
         arms[0].rotation.x=.3;arms[1].rotation.x=.2;
       }else if(hurt>0){player.rotation.x-=Math.sin((.75-hurt)*20)*hurt*.2;}
+      // The shield is thin along X. Rotate that normal toward forward (-Z),
+      // cancelling the raised arm rotation so the face covers the chest.
+      if(!mounted&&blocking&&health>0){
+        const inverseArm=arms[0].quaternion.clone().invert();
+        shield.quaternion.copy(inverseArm).multiply(shieldFront);
+        shield.position.set(-.25,1.3,-.72).sub(arms[0].position).applyQuaternion(inverseArm);
+      }else{shield.rotation.set(0,0,0);shield.position.set(-.14,-.4,-.06);}
       neck.rotation.x=-.3+(mounted?Math.sin(gait*2)*.035*gaitWeight:0);
       torso.position.y=1.22;
       mouseIdle+=dt;
