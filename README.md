@@ -33,3 +33,9 @@ Kılıç ve kalkan ileri yönde kaldırılır. Hasar kırmızı ekran kenarı, c
 ## 0.5 — Atlı savaş
 
 At üstünde sol tık sağ yana kılıç savurur (32 dayanıklılık). Hedef sağ tarafta ve 3,2 metre içinde olmalıdır. 0,18–0,4 saniye temas penceresinde tek hedefe tek vuruş uygulanır. Gerçek ileri hıza bağlı hasar 34–60 arasındadır; geri sürüş bonus vermez. Saldırı atın yönünü kameraya çevirmeden sürüşü korur. Atlı blok ve hedefin biniciye karşı vuruşu açıktır. On kural testi ve tip kontrolü geçti; tarayıcıda görsel oynanış doğrulaması henüz yapılmadı.
+
+## Mobil tarayıcı ve takip sayfası
+
+Mobil tarayıcı ana hedef olarak belirlendi. Dokunmatik cihazlarda sol analog hareket çubuğu, sağ kamera sürükleme alanı ve saldırı/blok/hızlanma/binme düğmeleri görünür. Dokunma iptalinde tutulan girişler bırakılır; odak kaybı hareketi durdurur. Mobil piksel oranı 1,25; gölge çözünürlüğü 1024 ile sınırlandırılır. Yatay ekran önerilir. Gerçek Android/iPhone oynanış ve performans testleri henüz yapılmadı.
+
+`public/roadmap.html` bağımsız HTML kontrol listesidir; oyundaki Yol haritası bağlantısıyla açılır. Kişisel işaretler aynı tarayıcıda localStorage içinde saklanır. Cihazlar veya ROADMAP.md ile otomatik eşitlenmez. Mobil testler online aşamadan önce listelenir.
