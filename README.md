@@ -117,3 +117,5 @@ has not been visually or physically phone-tested. 43 automated tests cover rules
 and server input, including horse occupancy/release, facing lock, spear reach
 and arrow travel/cover. Earlier foot-only match notes above describe the previous
 version and are superseded here.
+
+Movement jitter fix: actor translation is smoothed for rendering; camera target and position use that same visual anchor. Orbit smoothing is separate from travel, horse and rider share the render position, and impact camera shaking is removed. Sword now uses a descending lateral YXZ sweep; spear keeps a horizontal angle and translates forward. Two pose tests verify blade direction and thrust. 45 automated tests; visual verification remains pending.

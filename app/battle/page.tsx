@@ -6,7 +6,7 @@ import { createMatch, joinMatch, stepMatch } from '../../lib/match.mjs';
 import { WORLD_SOLIDS } from '../../lib/world.mjs';
 import { WEAPONS } from '../../lib/weapons.mjs';
 import { makeWarrior, makeHorse } from '../../lib/battle-models';
-import { swordAngle } from '../../lib/combat.mjs';
+import { meleePose } from '../../lib/melee-pose.mjs';
 
 type Match = ReturnType<typeof createMatch>;
 type Actor = Match['actors'][number];
@@ -239,6 +239,7 @@ export default function Battle() {
       messageUntil = 0,
       accumulator = 0,
       cameraReady = false;
+    const orbitOffset = new THREE.Vector3();
     let online: null | {
         url: string;
         code: string;
@@ -773,11 +774,19 @@ export default function Battle() {
         for (const a of match.actors) {
           if (!models.has(a.id)) addActor(a);
           const m = models.get(a.id)!;
-          m.group.position.set(
-            a.x,
-            a.mounted ? 1.2 : Math.abs(Math.sin(a.gait * 2)) * 0.025,
-            a.z,
-          );
+          const visualAlpha = 1 - Math.exp(-18 * dt);
+          if (
+            !m.group.userData.positionReady ||
+            Math.hypot(m.group.position.x - a.x, m.group.position.z - a.z) > 8
+          ) {
+            m.group.position.set(a.x, a.mounted ? 1.2 : 0, a.z);
+            m.group.userData.positionReady = true;
+          } else {
+            m.group.position.x += (a.x - m.group.position.x) * visualAlpha;
+            m.group.position.z += (a.z - m.group.position.z) * visualAlpha;
+            m.group.position.y +=
+              ((a.mounted ? 1.2 : 0) - m.group.position.y) * visualAlpha;
+          }
           m.sword.visible = a.weapon === 'sword';
           m.spear.visible = a.weapon === 'spear';
           m.bow.visible = a.weapon === 'bow';
@@ -810,21 +819,21 @@ export default function Battle() {
             m.arms[i].rotation.x =
               -Math.sin(a.gait + i * Math.PI) * 0.3 * weight;
           }
-          if (a.attackTime >= 0)
-            m.arms[1].rotation.x =
-              a.weapon === 'sword'
-                ? swordAngle(a.attackTime)
-                : a.weapon === 'spear'
-                  ? 1.5 + Math.sin(attackPhase * Math.PI) * 0.5
-                  : 1.15;
-          m.arms[1].position.z =
-            a.weapon === 'spear' && a.attackTime >= 0
-              ? -Math.sin(attackPhase * Math.PI) * 0.55
-              : 0;
+          m.arms[1].rotation.order = 'YXZ';
+          m.arms[1].rotation.y = 0;
+          m.arms[1].rotation.z = 0;
+          m.arms[1].position.z = 0;
+          if (
+            a.weapon === 'spear' ||
+            (a.weapon === 'sword' && a.attackTime >= 0)
+          ) {
+            const pose = meleePose(a.weapon, a.attackTime);
+            m.arms[1].rotation.set(pose.x, pose.y, pose.z, 'YXZ');
+            m.arms[1].position.z = -pose.thrust;
+          }
           if (a.weapon === 'bow') {
-            m.arms[0].rotation.x = 1.5;
-            m.arms[1].rotation.y = a.attackTime >= 0 ? -0.6 : 0;
-          } else m.arms[1].rotation.y = 0;
+            m.arms[1].rotation.set(1.15, a.attackTime >= 0 ? -0.6 : 0, 0);
+          }
           m.arms[0].rotation.set(
             a.blocking ? 1.4 : 0,
             0,
@@ -848,7 +857,17 @@ export default function Battle() {
             m.shield.rotation.set(0, 0, 0);
             m.shield.position.set(-0.14, -0.4, -0.06);
           }
-          if (a.weapon === 'bow') {m.arms[0].rotation.x = 1.5;m.bow.quaternion.copy(m.arms[0].quaternion.clone().invert()).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2));}
+          if (a.weapon === 'bow') {
+            m.arms[0].rotation.x = 1.5;
+            m.bow.quaternion
+              .copy(m.arms[0].quaternion.clone().invert())
+              .multiply(
+                new THREE.Quaternion().setFromAxisAngle(
+                  new THREE.Vector3(0, 1, 0),
+                  Math.PI / 2,
+                ),
+              );
+          }
           if (a.flash > 0)
             m.group.rotation.x = -Math.sin(a.flash * 35) * a.flash * 0.2;
           else m.group.rotation.x = 0;
@@ -863,6 +882,10 @@ export default function Battle() {
           model.group.position.set(h.x, 0, h.z);
           model.group.rotation.y = h.heading;
           const rider = match.actors.find((a) => a.id === h.rider);
+          if (rider) {
+            const visual = models.get(rider.id)!.group.position;
+            model.group.position.set(visual.x, 0, visual.z);
+          }
           model.legs.forEach(
             (leg, i) =>
               (leg.rotation.x = rider
@@ -906,7 +929,12 @@ export default function Battle() {
         )
           document.exitPointerLock();
         const me = match.actors.find((a) => a.id === playerId)!;
-        const target = new THREE.Vector3(me.x, me.mounted ? 2.7 : 1.5, me.z),
+        const visualPlayer = models.get(playerId)!.group.position;
+        const target = new THREE.Vector3(
+            visualPlayer.x,
+            visualPlayer.y + 1.5,
+            visualPlayer.z,
+          ),
           distance = 6.5;
         const desired = target
           .clone()
@@ -917,6 +945,10 @@ export default function Battle() {
               Math.cos(input.yaw) * distance * Math.cos(pitch),
             ),
           );
+        const requestedOffset = desired.clone().sub(target);
+        if (!cameraReady) orbitOffset.copy(requestedOffset);
+        else orbitOffset.lerp(requestedOffset, 1 - Math.exp(-18 * dt));
+        desired.copy(target).add(orbitOffset);
         const direction = desired.clone().sub(target);
         ray.set(target, direction.clone().normalize());
         const obstruction = ray.intersectObjects(walls)[0];
@@ -927,10 +959,8 @@ export default function Battle() {
               direction.normalize(),
               Math.max(0.5, obstruction.distance - 0.25),
             );
-        if (!cameraReady) {
-          camera.position.copy(desired);
-          cameraReady = true;
-        } else camera.position.lerp(desired, 1 - Math.exp(-12 * dt));
+        camera.position.copy(desired);
+        cameraReady = true;
         camera.lookAt(target);
         if (now - lastHud > 100) {
           lastHud = now;
@@ -984,10 +1014,6 @@ export default function Battle() {
           (p.mesh.material as THREE.Material).dispose();
           sparks.splice(i, 1);
         }
-      }
-      if (hitPulse > 0) {
-        camera.position.x += Math.sin(now * 0.09) * hitPulse * 0.055;
-        camera.position.y += Math.cos(now * 0.08) * hitPulse * 0.04;
       }
       renderer.render(scene, camera);
     };
