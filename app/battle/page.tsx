@@ -5,6 +5,7 @@ import MobileControls from '../../components/mobile-controls';
 import { createMatch, joinMatch, stepMatch } from '../../lib/match.mjs';
 import { WORLD_SOLIDS } from '../../lib/world.mjs';
 import { WEAPONS } from '../../lib/weapons.mjs';
+import { ARENA_CLASSES, applyArenaClass } from '../../lib/arena.mjs';
 import { makeWarrior, makeHorse } from '../../lib/battle-models';
 import { bowDraw } from '../../lib/bow-draw.mjs';
 import { meleePose } from '../../lib/melee-pose.mjs';
@@ -43,7 +44,8 @@ export default function Battle() {
   const host = useRef<HTMLDivElement>(null);
   const [touch, setTouch] = useState(false),
     [team, setTeam] = useState('blue'),
-    [size, setSize] = useState(2);
+    [size, setSize] = useState(2),
+    [loadout, setLoadout] = useState('knight');
   const [hud, setHud] = useState({
     health: 100,
     mounted: false,
@@ -89,7 +91,7 @@ export default function Battle() {
     ) => {},
     signal: (_signal: string) => {},
     weapon: (_weapon: string) => {},
-    start: (_team: string, _size: number) => {},
+    start: (_team: string, _size: number, _classId: string) => {},
     resume: () => {},
     pause: () => {},
     move: (_x: number, _y: number) => {},
@@ -399,7 +401,7 @@ export default function Battle() {
       if (!mobile) renderer.domElement.requestPointerLock?.()?.catch(() => {});
       setHud((h) => ({ ...h, paused: false }));
     };
-    const start = (team: string, size: number) => {
+    const start = (team: string, size: number, classId = 'knight') => {
       if (online) {
         const session = online;
         void request(
@@ -420,10 +422,11 @@ export default function Battle() {
       removeModels();
       match = createMatch({ teamSize: size });
       playerId = 'local';
-      const p = joinMatch(match, playerId, team, 'Sen');
+      const p = joinMatch(match, playerId, team, 'Sen', classId);
       match.actors.forEach(addActor);
       release();
       input.yaw = p.heading;
+      input.weapon = p.weapon;
       pitch = 0.38;
       hurt = 0;
       message = 'Takımınla ilerle · 15 skora ilk ulaşan kazanır';
@@ -481,6 +484,9 @@ export default function Battle() {
         match!.actors.forEach(addActor);
         release();
         input.yaw = match!.actors.find((a) => a.id === playerId)!.heading;
+        input.weapon =
+          ARENA_CLASSES[loadout as keyof typeof ARENA_CLASSES]?.weapon ??
+          'sword';
         cameraReady = false;
         setHud((h) => ({ ...h, phase: 'playing', paused: false }));
         resume();
@@ -1150,6 +1156,18 @@ export default function Battle() {
             Boş yerleri botlar doldurur. Rakibini devir, takımına skor kazandır.
             15 skor veya 5 dakika.
           </p>
+          <div className="class-choice" aria-label="Arena sınıfı">
+            {Object.entries(ARENA_CLASSES).map(([id, profile]) => (
+              <button
+                key={id}
+                aria-pressed={loadout === id}
+                onClick={() => setLoadout(id)}
+              >
+                <strong>{profile.label}</strong>
+                <small>{profile.description}</small>
+              </button>
+            ))}
+          </div>
           <div className="team-choice">
             <button
               aria-pressed={team === 'blue'}
@@ -1228,7 +1246,7 @@ export default function Battle() {
             onClick={() =>
               networkMode
                 ? void api.current.connect(serverUrl, roomCode, team, size)
-                : api.current.start(team, size)
+                : api.current.start(team, size, loadout)
             }
           >
             {connecting
@@ -1400,7 +1418,7 @@ export default function Battle() {
             className={finished ? 'primary' : 'secondary'}
             onClick={() => {
               setScores(false);
-              api.current.start(team, size);
+              api.current.start(team, size, loadout);
             }}
           >
             {connection.code && !connection.owner

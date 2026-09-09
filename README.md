@@ -121,3 +121,12 @@ version and are superseded here.
 Movement jitter fix: actor translation is smoothed for rendering; camera target and position use that same visual anchor. Orbit smoothing is separate from travel, horse and rider share the render position, and impact camera shaking is removed. Sword now uses a descending lateral YXZ sweep; spear keeps a horizontal angle and translates forward. Two pose tests verify blade direction and thrust. 45 automated tests; visual verification remains pending.
 
 Weapon grip fix: sword handle, spear shaft and bow grip are now parented to dedicated hand sockets on articulated forearms. Bow string uses two deforming segments; a nocked arrow follows the drawing string, release matches the .48 second simulation event, and a two-bone arm pose brings the right hand to the nock. Grip transforms checked across several sword poses; bow timing included in 46 automated tests. Visual review still pending.
+## Arena combat layer
+
+The existing courtyard map is unchanged. Arena fighters now have three roles:
+Knight (sword, shield and more health), Lancer (long reach spear and extra
+stamina), and Archer (bow, lighter armor and more speed). Bot slots rotate through
+these roles. Armor modifies incoming damage; class resources reset on respawn.
+The model is intentionally a Mount & Blade inspired foundation rather than a
+claim that every feature of that game is complete. Siege, inventory, persistent
+progression, server matchmaking and full horse AI remain future work.
