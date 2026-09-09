@@ -117,19 +117,37 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     );
     ell(knee, 0x393631, 0, -0.37, -0.065, 0.12, 0.1, 0.2);
   }
+  const elbows = arms.map((arm) => {
+    const elbow = new THREE.Group();
+    elbow.position.y = -0.39;
+    for (const child of [...arm.children])
+      if (child.position.y <= -0.39) {
+        arm.remove(child);
+        child.position.y += 0.39;
+        elbow.add(child);
+      }
+    arm.add(elbow);
+    return elbow;
+  });
+  const grips = elbows.map((elbow) => {
+    const grip = new THREE.Group();
+    grip.position.y = -0.3;
+    elbow.add(grip);
+    return grip;
+  });
   const sword = new THREE.Group();
-  arms[1].add(sword);
-  box(sword, 0xd8e0df, 0, -1.12, -0.04, 0.065, 0.82, 0.035);
-  box(sword, 0xc5a469, 0, -0.7, -0.04, 0.3, 0.045, 0.07);
-  box(sword, 0x514031, 0, -0.61, -0.04, 0.065, 0.14, 0.065);
+  grips[1].add(sword);
+  box(sword, 0x514031, 0, 0, 0, 0.065, 0.18, 0.065);
+  box(sword, 0xc5a469, 0, -0.13, 0, 0.3, 0.045, 0.07);
+  box(sword, 0xd8e0df, 0, -0.56, 0, 0.065, 0.82, 0.035);
   const spear = new THREE.Group();
-  arms[1].add(spear);
+  grips[1].add(spear);
   mesh(
     spear,
     new THREE.CylinderGeometry(0.025, 0.025, 2.8, 7),
     0x795735,
     0,
-    -0.75,
+    -0.06,
     0,
   );
   const tip = mesh(
@@ -137,13 +155,12 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     new THREE.ConeGeometry(0.085, 0.38, 4),
     0xcbd5d4,
     0,
-    -2.3,
+    -1.61,
     0,
   );
   tip.rotation.x = Math.PI;
   const bow = new THREE.Group();
-  arms[0].add(bow);
-  bow.position.set(0, -0.6, -0.18);
+  grips[0].add(bow);
   const arc = new THREE.EllipseCurve(
     0,
     0,
@@ -155,7 +172,7 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     0,
   )
     .getPoints(16)
-    .map((p) => new THREE.Vector3(p.x, p.y, 0));
+    .map((p) => new THREE.Vector3(p.x - 0.24, p.y, 0));
   mesh(
     bow,
     new THREE.TubeGeometry(
@@ -167,7 +184,15 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     ),
     0x8d6239,
   );
-  mesh(bow, new THREE.CylinderGeometry(0.006, 0.006, 1.2, 4), 0xddd2b0);
+  const bowStrings = [-1, 1].map(() =>
+    mesh(bow, new THREE.CylinderGeometry(0.007, 0.007, 1, 5), 0xeee4ca),
+  );
+  const nockedArrow = mesh(
+    bow,
+    new THREE.CylinderGeometry(0.018, 0.018, 0.85, 5),
+    0xe8cc89,
+  );
+  nockedArrow.geometry.rotateZ(Math.PI / 2);
   const shield = mesh(
     arms[0],
     new THREE.CylinderGeometry(0.36, 0.31, 0.09, 10),
@@ -207,6 +232,10 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     arms,
     legs,
     knees,
+    elbows,
+    grips,
+    bowStrings,
+    nockedArrow,
     sword,
     spear,
     bow,

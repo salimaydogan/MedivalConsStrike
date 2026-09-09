@@ -6,6 +6,7 @@ import { createMatch, joinMatch, stepMatch } from '../../lib/match.mjs';
 import { WORLD_SOLIDS } from '../../lib/world.mjs';
 import { WEAPONS } from '../../lib/weapons.mjs';
 import { makeWarrior, makeHorse } from '../../lib/battle-models';
+import { bowDraw } from '../../lib/bow-draw.mjs';
 import { meleePose } from '../../lib/melee-pose.mjs';
 
 type Match = ReturnType<typeof createMatch>;
@@ -819,6 +820,7 @@ export default function Battle() {
             m.arms[i].rotation.x =
               -Math.sin(a.gait + i * Math.PI) * 0.3 * weight;
           }
+          m.elbows.forEach((elbow) => elbow.rotation.set(0, 0, 0));
           m.arms[1].rotation.order = 'YXZ';
           m.arms[1].rotation.y = 0;
           m.arms[1].rotation.z = 0;
@@ -858,7 +860,7 @@ export default function Battle() {
             m.shield.position.set(-0.14, -0.4, -0.06);
           }
           if (a.weapon === 'bow') {
-            m.arms[0].rotation.x = 1.5;
+            m.arms[0].rotation.set(1.5, -0.55, 0, 'YXZ');
             m.bow.quaternion
               .copy(m.arms[0].quaternion.clone().invert())
               .multiply(
@@ -867,6 +869,53 @@ export default function Battle() {
                   Math.PI / 2,
                 ),
               );
+            const draw = bowDraw(a.attackTime),
+              nock = new THREE.Vector3(-0.24 - 0.36 * draw, 0, 0);
+            m.bowStrings.forEach((string, i) => {
+              const end = new THREE.Vector3(-0.24, i === 0 ? -0.6 : 0.6, 0),
+                delta = nock.clone().sub(end);
+              string.position.copy(end).add(nock).multiplyScalar(0.5);
+              string.scale.y = delta.length();
+              string.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                delta.normalize(),
+              );
+            });
+            m.nockedArrow.visible = a.attackTime < 0 || a.attackTime < 0.48;
+            m.nockedArrow.position
+              .copy(nock)
+              .add(new THREE.Vector3(0.425, 0, 0));
+            m.group.updateMatrixWorld(true);
+            const hand = m.group.worldToLocal(m.bow.localToWorld(nock.clone()));
+            const shoulder = m.arms[1].position,
+              dir = hand.clone().sub(shoulder),
+              distance = Math.min(0.689, Math.max(0.091, dir.length()));
+            dir.normalize();
+            const along =
+                (0.39 * 0.39 - 0.3 * 0.3 + distance * distance) /
+                (2 * distance),
+              height = Math.sqrt(Math.max(0, 0.39 * 0.39 - along * along));
+            const bend = new THREE.Vector3(0, 1, 0)
+              .addScaledVector(dir, -dir.y)
+              .normalize();
+            const elbow = dir
+              .clone()
+              .multiplyScalar(along)
+              .addScaledVector(bend, height);
+            m.arms[1].quaternion.setFromUnitVectors(
+              new THREE.Vector3(0, -1, 0),
+              elbow.clone().normalize(),
+            );
+            const forearm = dir
+              .clone()
+              .multiplyScalar(distance)
+              .sub(elbow)
+              .normalize()
+              .applyQuaternion(m.arms[1].quaternion.clone().invert());
+            m.elbows[1].quaternion.setFromUnitVectors(
+              new THREE.Vector3(0, -1, 0),
+              forearm,
+            );
           }
           if (a.flash > 0)
             m.group.rotation.x = -Math.sin(a.flash * 35) * a.flash * 0.2;
