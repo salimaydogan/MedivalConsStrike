@@ -62,3 +62,40 @@ Başlangıca Dokunmatik / Klavye ve fare seçimi eklendi. Mobil metinler düğme
 
 ## Shared training combat (9 September)
 Combat timing, regeneration, directional defense, damage and target respawn now run in a serializable pure simulation. Scene code consumes events for sound and damage feedback. Solid obstacles block strikes in both directions; death ends further attacks in the same step. Input dispatch remains in the browser; this is not an authoritative online server or moving bot implementation. 26 rule tests pass; real-device and network verification remain pending.
+
+## Bot matches and local room server (9 September)
+
+`/battle` provides third-person foot combat with a blue/red team choice, 2vs2 or
+5vs5 roster, bots in every vacant slot, a 5 minute / 15 kill limit, a scoreboard,
+4 second respawn and 2 second spawn protection. Touch controls and keyboard/mouse
+are available. Existing horse training remains at `/`; horses are not in the
+team match yet. Local matches pause on blur; online matches continue while the
+menu is open. Friendly fire is off. Team calls have a 3 second cooldown; calls
+are delivered to teammates, while “good game” reaches both teams.
+
+Run the frontend with `npm run dev` and in another terminal run
+`npm run game-server` from this directory. Open the frontend's printed URL,
+choose Online test room, and enter `http://127.0.0.1:3001`. Create a room on one
+client and join its code on another. The room server runs at 30 Hz, accepts only
+sequenced input intentions, and returns authoritative state over HTTP. No client
+position, damage, health or time step is accepted. Actions are consumed once.
+Stale controls stop after 250 ms; after 8 seconds without requests the player's
+slot becomes a bot. Empty rooms expire after 2 minutes. Owner departure transfers
+restart control to a remaining player. Rooms are memory-only and lost on restart.
+
+Default binding is loopback. A deliberate LAN test can set `GAME_HOST=0.0.0.0`
+and set `GAME_ORIGINS` to the exact frontend origins (comma-separated). A phone
+must use the PC's LAN address for both frontend and room server, not localhost.
+The Vite server must also be explicitly exposed for that test. No firewall or
+router changes were made. A published HTTPS page requires an HTTPS room endpoint;
+no public endpoint or production realtime hosting has been provisioned. The Sites
+publication hosts the frontend and offline bots, not the Node room process.
+
+Validation: 37 automated rules/server tests, including complete bot-only and
+one-idle-human matches, two HTTP client sessions, team capacity, one-hit scoring,
+respawn, input spoofing/replay rejection, disconnect replacement, call throttling,
+team-only delivery and owner transfer. Local frontend `/battle` and server health
+returned HTTP 200. This does not verify WebGL rendering, real phone multitouch,
+internet latency, real players' enjoyment or production load. Remaining work:
+real device playtests, smoother network rendering/prediction, connection recovery,
+production hosting/abuse hardening and horse integration into team matches.

@@ -10,7 +10,9 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "game-server": "node server/rooms.mjs",
+    "test": "node --test lib/*.test.mjs server/*.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

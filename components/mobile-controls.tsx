@@ -13,7 +13,7 @@ export type TouchInput = {
   pause: () => void;
 };
 
-export default function MobileControls({ input, mounted, near }: { input: TouchInput; mounted: boolean; near: boolean }) {
+export default function MobileControls({ input, mounted, near, showMount=true }: { input: TouchInput; mounted: boolean; near: boolean; showMount?:boolean }) {
   const [stick,setStick]=useState({x:0,y:0});
   const stickId=useRef<number|null>(null);
   const camera=useRef<{id:number;x:number;y:number}|null>(null);
@@ -41,7 +41,7 @@ export default function MobileControls({ input, mounted, near }: { input: TouchI
     <div className="touch-actions">{hold(input.sprint,'Hızlan')}{hold(input.guard,'Kalkan')}
       <button className="touch-attack" onPointerDown={e=>{e.preventDefault();input.attack();}}>Kılıç</button>
       <button disabled={mounted} onPointerDown={e=>{e.preventDefault();input.dodge();}}>Kaçın</button>
-      <button disabled={!mounted&&!near} onClick={input.mount}>{mounted?'Attan in':near?'Ata bin':'Ata yaklaş'}</button>
+      {showMount&&<button disabled={!mounted&&!near} onClick={input.mount}>{mounted?'Attan in':near?'Ata bin':'Ata yaklaş'}</button>}
     </div>
   </div>;
 }
