@@ -12,10 +12,19 @@ import { parseMovementMessage } from '../lib/player-motion.mjs';
 export function parseCommand(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw Error('Geçersiz komut');
-  const { attack = false, guard = false, dodge = false, ...move } = value;
-  if ([attack, guard, dodge].some((v) => typeof v !== 'boolean'))
+  const {
+    attack = false,
+    guard = false,
+    dodge = false,
+    mount = false,
+    weapon = 'sword',
+    ...move
+  } = value;
+  if (!['sword', 'spear', 'bow'].includes(weapon))
+    throw Error('Geçersiz silah');
+  if ([attack, guard, dodge, mount].some((v) => typeof v !== 'boolean'))
     throw Error('Geçersiz komut');
-  return { ...parseMovementMessage(move), attack, guard, dodge };
+  return { ...parseMovementMessage(move), attack, guard, dodge, mount, weapon };
 }
 export function createRoomServer({
   origins = ['http://localhost:3000', 'http://127.0.0.1:3000'],
@@ -191,6 +200,7 @@ export function createRoomServer({
           ...input,
           attack: input.attack || client.input.attack === true,
           dodge: input.dodge || client.input.dodge === true,
+          mount: input.mount || client.input.mount === true,
         };
         send(res, 200, snapshot(room, client.id));
         return;
@@ -261,7 +271,7 @@ export function createRoomServer({
       const inputs = {};
       for (const c of room.clients.values()) {
         inputs[c.id] = now() - c.lastInput < 250 ? c.input : {};
-        c.input = { ...c.input, attack: false, dodge: false };
+        c.input = { ...c.input, attack: false, dodge: false, mount: false };
       }
       stepMatch(room.match, inputs, 1 / 30);
       for (const e of room.match.events) event(room, e);

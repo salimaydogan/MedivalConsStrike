@@ -99,3 +99,21 @@ returned HTTP 200. This does not verify WebGL rendering, real phone multitouch,
 internet latency, real players' enjoyment or production load. Remaining work:
 real device playtests, smoother network rendering/prediction, connection recovery,
 production hosting/abuse hardening and horse integration into team matches.
+
+## Combat variety update
+Battle now has exactly one shared horse in 2vs2 and two in 5vs5. Humans can mount
+with E or the touch button; a horse cannot have two riders. Dismount checks the
+side space, death/departure releases occupancy. Bots currently remain on foot.
+Keys 1/2/3 or the weapon buttons select sword, spear or bow. Only the sword uses
+the shield; dodge is unavailable while mounted. Spear has longer narrow reach;
+arrows travel in the horizontal combat plane and stop at cover (no ballistic
+vertical aiming yet). Weapons cannot change during a swing. Melee heading no
+longer snaps to camera yaw. Vertical camera range now includes upward viewing,
+and mouse dragging works when pointer lock is unavailable.
+Warriors use layered armour, helmets, tapered limbs and articulated knees;
+horses use curved body/neck geometry. Sword trails, short spark bursts, damage
+labels and a small impact camera response are rendered locally. New rendering
+has not been visually or physically phone-tested. 43 automated tests cover rules
+and server input, including horse occupancy/release, facing lock, spear reach
+and arrow travel/cover. Earlier foot-only match notes above describe the previous
+version and are superseded here.

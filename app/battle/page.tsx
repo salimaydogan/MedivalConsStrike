@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import MobileControls from '../../components/mobile-controls';
 import { createMatch, joinMatch, stepMatch } from '../../lib/match.mjs';
 import { WORLD_SOLIDS } from '../../lib/world.mjs';
+import { WEAPONS } from '../../lib/weapons.mjs';
+import { makeWarrior, makeHorse } from '../../lib/battle-models';
 import { swordAngle } from '../../lib/combat.mjs';
 
 type Match = ReturnType<typeof createMatch>;
@@ -33,6 +35,8 @@ const emptyInput = () => ({
   guard: false,
   attack: false,
   dodge: false,
+  mount: false,
+  weapon: 'sword',
 });
 export default function Battle() {
   const host = useRef<HTMLDivElement>(null);
@@ -41,6 +45,9 @@ export default function Battle() {
     [size, setSize] = useState(2);
   const [hud, setHud] = useState({
     health: 100,
+    mounted: false,
+    near: false,
+    weapon: 'sword',
     stamina: 100,
     blue: 0,
     red: 0,
@@ -80,6 +87,7 @@ export default function Battle() {
       _size: number,
     ) => {},
     signal: (_signal: string) => {},
+    weapon: (_weapon: string) => {},
     start: (_team: string, _size: number) => {},
     resume: () => {},
     pause: () => {},
@@ -179,76 +187,43 @@ export default function Battle() {
       box(scene, 2.2, 2, 0.12, -6.9, 5.7, z, z > 0 ? 0x327795 : 0xad4f40);
     }
     let playerId = 'local';
-    const models = new Map<
-      string,
-      {
-        group: THREE.Group;
-        legs: THREE.Group[];
-        arms: THREE.Group[];
-        shield: THREE.Mesh;
-        bar: THREE.Mesh;
-        halo: THREE.Mesh;
+    const models = new Map<string, ReturnType<typeof makeWarrior>>();
+    const horseModels = new Map<number, ReturnType<typeof makeHorse>>();
+    const arrowModels = new Map<number, THREE.Mesh>();
+    const sparks: { mesh: THREE.Mesh; v: THREE.Vector3; left: number }[] = [];
+    let hitPulse = 0,
+      hitLabel = '',
+      effectTime = 0;
+    const impact = (x: number, z: number, blocked: boolean) => {
+      for (let i = 0; i < 8; i++) {
+        const mesh = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(0.035, 0),
+          new THREE.MeshBasicMaterial({
+            color: blocked ? 0xbdeaff : 0xffd194,
+            transparent: true,
+          }),
+        );
+        mesh.position.set(x, 1.3, z);
+        scene.add(mesh);
+        sparks.push({
+          mesh,
+          v: new THREE.Vector3(
+            Math.sin(i * 2.4) * 2,
+            1 + (i % 3),
+            Math.cos(i * 2.4) * 2,
+          ),
+          left: 0.35,
+        });
       }
-    >();
-    const limb = (
-      parent: THREE.Object3D,
-      x: number,
-      y: number,
-      length: number,
-      color: number,
-    ) => {
-      const g = new THREE.Group();
-      g.position.set(x, y, 0);
-      parent.add(g);
-      box(g, 0.22, length, 0.22, 0, -length / 2, 0, color);
-      return g;
     };
     const addActor = (a: Actor) => {
-      const group = new THREE.Group();
-      scene.add(group);
-      const color = a.team === 'blue' ? 0x316f8b : 0xa94f40;
-      box(group, 0.7, 0.85, 0.42, 0, 1.22, 0, color);
-      box(group, 0.48, 0.46, 0.45, 0, 1.9, 0, 0xb9bfc0);
-      box(group, 0.34, 0.1, 0.03, 0, 1.91, -0.24, 0x25343b);
-      const legs = [
-        limb(group, -0.2, 0.85, 0.7, 0x3e4442),
-        limb(group, 0.2, 0.85, 0.7, 0x3e4442),
-      ];
-      legs.forEach((g) => box(g, 0.25, 0.14, 0.4, 0, -0.69, -0.07, 0x302f2c));
-      const arms = [
-        limb(group, -0.5, 1.58, 0.65, 0x9aabb0),
-        limb(group, 0.5, 1.58, 0.65, 0x9aabb0),
-      ];
-      box(arms[1], 0.12, 0.85, 0.12, 0, -0.85, -0.2, 0xc0c6c2);
-      box(arms[1], 0.42, 0.09, 0.18, 0, -0.5, -0.2, 0xc3a264);
-      const shield = box(arms[0], 0.12, 0.8, 0.65, -0.14, -0.4, -0.06, color);
-      box(group, 1, 0.1, 0.09, 0, 2.55, 0, 0x333d38);
-      const bar = box(
-        group,
-        0.95,
-        0.06,
-        0.1,
-        0,
-        2.55,
-        0.02,
-        a.team === 'blue' ? 0x76d1e8 : 0xf49375,
+      const model = makeWarrior(
+        a.team === 'blue' ? 0x316f8b : 0xa94f40,
+        a.id === playerId,
+        material,
       );
-      const halo = new THREE.Mesh(
-        new THREE.RingGeometry(0.7, 0.8, 24),
-        new THREE.MeshBasicMaterial({
-          color:
-            a.id === playerId
-              ? 0xf3d08b
-              : a.team === 'blue'
-                ? 0x66c4e6
-                : 0xe86c51,
-          side: THREE.DoubleSide,
-        }),
-      );
-      halo.rotation.x = -Math.PI / 2;
-      halo.position.y = 0.08;
-      group.add(halo);
-      models.set(a.id, { group, legs, arms, shield, bar, halo });
+      models.set(a.id, model);
+      scene.add(model.group);
     };
     let match: Match | null = null,
       paused = false,
@@ -276,6 +251,7 @@ export default function Battle() {
         failures: number;
       } = null,
       disposed = false;
+    let mouseHeld = false;
     const signalLabels: Record<string, string> = {
       together: 'Birlikte ilerleyelim',
       help: 'Yardıma ihtiyacım var',
@@ -311,6 +287,7 @@ export default function Battle() {
           if (o instanceof THREE.Mesh) o.geometry.dispose();
         });
         (m.halo.material as THREE.Material).dispose();
+        (m.trail.material as THREE.Material).dispose();
       }
       models.clear();
     };
@@ -344,6 +321,16 @@ export default function Battle() {
       for (const e of value.events || []) {
         if (!online || e.serial <= online.serial) continue;
         online.serial = e.serial;
+        if (e.type === 'hit' || e.type === 'block') {
+          const a = match.actors.find((a) => a.id === e.id);
+          if (a) impact(a.x, a.z, e.type === 'block');
+          if (e.by === playerId) {
+            hitPulse = 0.22;
+            hitLabel = e.type === 'block' ? 'BLOK' : 'İSABET';
+            effectTime = 0.5;
+            beep(e.type === 'block' ? 700 : 150);
+          }
+        }
         if (e.type === 'signal' && (e.team === me.team || e.signal === 'gg')) {
           message =
             (match.actors.find((a) => a.id === e.id)?.name || 'Oyuncu') +
@@ -387,7 +374,8 @@ export default function Battle() {
     const release = () => {
       keys.clear();
       side = forward = 0;
-      input = { ...emptyInput(), yaw: input.yaw };
+      input = { ...emptyInput(), yaw: input.yaw, weapon: input.weapon };
+      mouseHeld = false;
     };
     const pause = () => {
       if (!match || match.phase === 'finished') return;
@@ -525,7 +513,12 @@ export default function Battle() {
       start,
       resume,
       pause,
-      mount: () => {},
+      mount: () => {
+        if (!paused) input.mount = true;
+      },
+      weapon: (w) => {
+        input.weapon = w;
+      },
       mode: (v) => {
         mobile = v;
         setTouch(v);
@@ -538,7 +531,7 @@ export default function Battle() {
       look: (x, y) => {
         if (paused) return;
         input.yaw -= x * 0.005;
-        pitch = THREE.MathUtils.clamp(pitch + y * 0.004, 0.12, 1.05);
+        pitch = THREE.MathUtils.clamp(pitch + y * 0.004, -0.4, 1.25);
       },
       attack: () => {
         if (!paused) input.attack = true;
@@ -574,20 +567,29 @@ export default function Battle() {
       )
         e.preventDefault();
       keys.add(e.code);
+      if (e.code === 'KeyE' && !e.repeat) input.mount = true;
+      if (['Digit1', 'Digit2', 'Digit3'].includes(e.code))
+        input.weapon = ['sword', 'spear', 'bow'][Number(e.code.slice(-1)) - 1];
       if (e.code === 'Space' && !e.repeat) input.dodge = true;
     };
     const up = (e: KeyboardEvent) => keys.delete(e.code);
     const mouse = (e: MouseEvent) => {
-      if (document.pointerLockElement !== renderer.domElement || paused) return;
+      if (
+        (document.pointerLockElement !== renderer.domElement && !mouseHeld) ||
+        paused
+      )
+        return;
       input.yaw -= e.movementX * 0.003;
-      pitch = THREE.MathUtils.clamp(pitch + e.movementY * 0.002, 0.12, 1.05);
+      pitch = THREE.MathUtils.clamp(pitch + e.movementY * 0.003, -0.4, 1.25);
     };
     const attack = (e: MouseEvent) => {
       if (paused || !match) return;
+      mouseHeld = true;
       if (e.button === 0) input.attack = true;
       if (e.button === 2) input.guard = true;
     };
     const lift = (e: MouseEvent) => {
+      mouseHeld = false;
       if (e.button === 2) input.guard = false;
     };
     const context = (e: Event) => e.preventDefault();
@@ -655,6 +657,7 @@ export default function Battle() {
           };
           input.attack = false;
           input.dodge = false;
+          input.mount = false;
           void request(
             session.url,
             '/rooms/' + session.code + '/input',
@@ -722,8 +725,20 @@ export default function Battle() {
             );
             input.attack = false;
             input.dodge = false;
+            input.mount = false;
             accumulator -= 1 / 60;
             for (const e of match.events) {
+              if (e.type === 'swing' && e.id === playerId) beep(280);
+              if (e.type === 'hit' || e.type === 'block') {
+                const a = match.actors.find((a) => a.id === e.id);
+                if (a) impact(a.x, a.z, e.type === 'block');
+                if (e.by === playerId) {
+                  hitPulse = 0.22;
+                  hitLabel =
+                    e.type === 'block' ? 'BLOK' : String(e.damage) + ' HASAR';
+                  effectTime = 0.5;
+                }
+              }
               if (e.id === playerId && e.type === 'hit') {
                 hurt = 0.5;
                 beep(85);
@@ -752,12 +767,28 @@ export default function Battle() {
               if (o instanceof THREE.Mesh) o.geometry.dispose();
             });
             (model.halo.material as THREE.Material).dispose();
+            (model.trail.material as THREE.Material).dispose();
             models.delete(id);
           }
         for (const a of match.actors) {
           if (!models.has(a.id)) addActor(a);
           const m = models.get(a.id)!;
-          m.group.position.set(a.x, 0, a.z);
+          m.group.position.set(
+            a.x,
+            a.mounted ? 1.2 : Math.abs(Math.sin(a.gait * 2)) * 0.025,
+            a.z,
+          );
+          m.sword.visible = a.weapon === 'sword';
+          m.spear.visible = a.weapon === 'spear';
+          m.bow.visible = a.weapon === 'bow';
+          m.shield.visible = a.weapon === 'sword';
+          const duration = WEAPONS[a.weapon as keyof typeof WEAPONS].duration;
+          const attackPhase = Math.max(0, a.attackTime / duration);
+          (m.trail.material as THREE.MeshBasicMaterial).opacity =
+            a.weapon === 'sword' && a.attackTime > 0.16 && a.attackTime < 0.38
+              ? 0.55
+              : 0;
+          m.trail.rotation.z = attackPhase * 3;
           m.group.rotation.set(
             0,
             a.heading,
@@ -770,13 +801,30 @@ export default function Battle() {
           );
           const weight = a.health > 0 ? Math.min(a.speed / 3.3, 1) : 0;
           for (let i = 0; i < 2; i++) {
-            m.legs[i].rotation.x =
-              Math.sin(a.gait + i * Math.PI) * 0.65 * weight;
+            m.legs[i].rotation.x = a.mounted
+              ? -0.9
+              : Math.sin(a.gait + i * Math.PI) * 0.65 * weight;
+            m.knees[i].rotation.x = a.mounted
+              ? 1.2
+              : Math.max(0, -Math.sin(a.gait + i * Math.PI)) * 0.9 * weight;
             m.arms[i].rotation.x =
               -Math.sin(a.gait + i * Math.PI) * 0.3 * weight;
           }
           if (a.attackTime >= 0)
-            m.arms[1].rotation.x = swordAngle(a.attackTime);
+            m.arms[1].rotation.x =
+              a.weapon === 'sword'
+                ? swordAngle(a.attackTime)
+                : a.weapon === 'spear'
+                  ? 1.5 + Math.sin(attackPhase * Math.PI) * 0.5
+                  : 1.15;
+          m.arms[1].position.z =
+            a.weapon === 'spear' && a.attackTime >= 0
+              ? -Math.sin(attackPhase * Math.PI) * 0.55
+              : 0;
+          if (a.weapon === 'bow') {
+            m.arms[0].rotation.x = 1.5;
+            m.arms[1].rotation.y = a.attackTime >= 0 ? -0.6 : 0;
+          } else m.arms[1].rotation.y = 0;
           m.arms[0].rotation.set(
             a.blocking ? 1.4 : 0,
             0,
@@ -800,21 +848,72 @@ export default function Battle() {
             m.shield.rotation.set(0, 0, 0);
             m.shield.position.set(-0.14, -0.4, -0.06);
           }
+          if (a.weapon === 'bow') {m.arms[0].rotation.x = 1.5;m.bow.quaternion.copy(m.arms[0].quaternion.clone().invert()).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2));}
+          if (a.flash > 0)
+            m.group.rotation.x = -Math.sin(a.flash * 35) * a.flash * 0.2;
+          else m.group.rotation.x = 0;
         }
+        for (const h of match.horses) {
+          if (!horseModels.has(h.id)) {
+            const model = makeHorse(material);
+            horseModels.set(h.id, model);
+            scene.add(model.group);
+          }
+          const model = horseModels.get(h.id)!;
+          model.group.position.set(h.x, 0, h.z);
+          model.group.rotation.y = h.heading;
+          const rider = match.actors.find((a) => a.id === h.rider);
+          model.legs.forEach(
+            (leg, i) =>
+              (leg.rotation.x = rider
+                ? Math.sin(rider.gait + (i % 2) * Math.PI) *
+                  0.6 *
+                  Math.min(Math.abs(rider.speed) / 5, 1)
+                : 0),
+          );
+        }
+        for (const [id, model] of horseModels)
+          if (!match.horses.some((h) => h.id === id)) {
+            scene.remove(model.group);
+            model.group.traverse((o) => {
+              if (o instanceof THREE.Mesh) o.geometry.dispose();
+            });
+            horseModels.delete(id);
+          }
+        for (const p of match.projectiles) {
+          if (!arrowModels.has(p.id)) {
+            const mesh = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.018, 0.018, 0.85, 5),
+              material(0xe8cc89),
+            );
+            mesh.geometry.rotateX(Math.PI / 2);
+            scene.add(mesh);
+            arrowModels.set(p.id, mesh);
+          }
+          const mesh = arrowModels.get(p.id)!;
+          mesh.position.set(p.x, 1.45, p.z);
+          mesh.rotation.y = Math.atan2(p.vx, p.vz);
+        }
+        for (const [id, mesh] of arrowModels)
+          if (!match.projectiles.some((p) => p.id === id)) {
+            scene.remove(mesh);
+            mesh.geometry.dispose();
+            arrowModels.delete(id);
+          }
         if (
           match.phase === 'finished' &&
           document.pointerLockElement === renderer.domElement
         )
           document.exitPointerLock();
         const me = match.actors.find((a) => a.id === playerId)!;
-        const target = new THREE.Vector3(me.x, 1.5, me.z),
+        const target = new THREE.Vector3(me.x, me.mounted ? 2.7 : 1.5, me.z),
           distance = 6.5;
         const desired = target
           .clone()
           .add(
             new THREE.Vector3(
               Math.sin(input.yaw) * distance * Math.cos(pitch),
-              2 + Math.sin(pitch) * distance,
+              Math.sin(pitch) * distance,
               Math.cos(input.yaw) * distance * Math.cos(pitch),
             ),
           );
@@ -837,6 +936,11 @@ export default function Battle() {
           lastHud = now;
           setHud({
             health: me.health,
+            mounted: me.mounted,
+            near: match.horses.some(
+              (h) => !h.rider && Math.hypot(h.x - me.x, h.z - me.z) < 3.5,
+            ),
+            weapon: me.weapon,
             stamina: Math.round(me.stamina),
             blue: match.score.blue,
             red: match.score.red,
@@ -846,7 +950,12 @@ export default function Battle() {
             phase: match.phase,
             paused,
             hurt,
-            message: match.elapsed < messageUntil ? message : '',
+            message:
+              effectTime > 0
+                ? hitLabel
+                : match.elapsed < messageUntil
+                  ? message
+                  : '',
             roster: match.actors.map((a) => ({
               id: a.id,
               name: a.name,
@@ -857,6 +966,28 @@ export default function Battle() {
             })),
           });
         }
+      }
+      hitPulse = Math.max(0, hitPulse - dt);
+      effectTime = Math.max(0, effectTime - dt);
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const p = sparks[i];
+        p.left -= dt;
+        p.mesh.position.addScaledVector(p.v, dt);
+        p.v.y -= 8 * dt;
+        (p.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(
+          0,
+          p.left / 0.35,
+        );
+        if (p.left <= 0) {
+          scene.remove(p.mesh);
+          p.mesh.geometry.dispose();
+          (p.mesh.material as THREE.Material).dispose();
+          sparks.splice(i, 1);
+        }
+      }
+      if (hitPulse > 0) {
+        camera.position.x += Math.sin(now * 0.09) * hitPulse * 0.055;
+        camera.position.y += Math.cos(now * 0.08) * hitPulse * 0.04;
       }
       renderer.render(scene, camera);
     };
@@ -887,9 +1018,12 @@ export default function Battle() {
       scene.traverse((o) => {
         if (o instanceof THREE.Mesh) o.geometry.dispose();
       });
-      for (const m of models.values())
+      for (const m of models.values()) {
         (m.halo.material as THREE.Material).dispose();
+        (m.trail.material as THREE.Material).dispose();
+      }
       materials.forEach((m) => m.dispose());
+      for (const p of sparks) (p.mesh.material as THREE.Material).dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -1034,8 +1168,8 @@ export default function Battle() {
             <p role="alert">{error}</p>
           ) : (
             <small>
-              Bu maç cihazında oynanır. İlk sürüm yaya kılıç–kalkan savaşıdır;
-              atlı talim avluda devam ediyor.
+              Kılıç yakın dövüş, mızrak uzun erişim, yay uzak menzil içindir.
+              2vs2’de 1, 5vs5’te 2 ortak at bulunur.
             </small>
           )}
         </section>
@@ -1087,9 +1221,10 @@ export default function Battle() {
       {touch && started && !hud.paused && !finished && hud.health > 0 && (
         <MobileControls
           input={api.current}
-          mounted={false}
-          near={false}
-          showMount={false}
+          mounted={hud.mounted}
+          near={hud.near}
+          showMount={true}
+          attackLabel={WEAPONS[hud.weapon as keyof typeof WEAPONS].label}
         />
       )}
       {started && connection.code && (
@@ -1109,6 +1244,27 @@ export default function Battle() {
             {signalText && <small role="status">{signalText}</small>}
           </div>
         </details>
+      )}
+      {started && !finished && !hud.paused && (
+        <div className="weapon-select">
+          {Object.entries(WEAPONS).map(([id, w], i) => (
+            <button
+              key={id}
+              aria-pressed={hud.weapon === id}
+              onClick={() => api.current.weapon(id)}
+            >
+              {i + 1} · {w.label}
+            </button>
+          ))}
+          {!touch && (
+            <button
+              disabled={!hud.mounted && !hud.near}
+              onClick={() => api.current.mount()}
+            >
+              E · {hud.mounted ? 'Attan in' : 'Ata bin'}
+            </button>
+          )}
+        </div>
       )}
       {(finished || hud.paused) && (
         <section className="battle-menu battle-overlay">
