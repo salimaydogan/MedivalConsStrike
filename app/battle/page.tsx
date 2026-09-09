@@ -48,6 +48,8 @@ export default function Battle() {
     [loadout, setLoadout] = useState('knight');
   const [hud, setHud] = useState({
     health: 100,
+    maxHealth: 100,
+    maxStamina: 100,
     mounted: false,
     near: false,
     weapon: 'sword',
@@ -810,7 +812,7 @@ export default function Battle() {
             a.heading,
             a.health === 0 ? Math.min(1.4, (4 - a.respawn) * 3) : 0,
           );
-          m.bar.scale.x = Math.max(0.001, a.health / 100);
+          m.bar.scale.x = Math.max(0.001, a.health / a.maxHealth);
           m.halo.visible = a.health > 0;
           m.halo.scale.setScalar(
             a.protection > 0 ? 1.2 + Math.sin(now * 0.006) * 0.1 : 1,
@@ -836,8 +838,11 @@ export default function Battle() {
             (a.weapon === 'sword' && a.attackTime >= 0)
           ) {
             const pose = meleePose(a.weapon, a.attackTime);
-            m.arms[1].rotation.set(pose.x, pose.y, pose.z, 'YXZ');
+            m.arms[1].rotation.set(pose.x, pose.y + (a.mounted ? a.attackOffset : 0), pose.z, 'YXZ');
             m.arms[1].position.z = -pose.thrust;
+          }
+          if (a.weapon === 'spear' && a.blocking) {
+            m.arms[1].rotation.set(Math.PI / 2, 0.9, 0, 'YXZ');
           }
           if (a.weapon === 'bow') {
             m.arms[1].rotation.set(1.15, a.attackTime >= 0 ? -0.6 : 0, 0);
@@ -1021,6 +1026,8 @@ export default function Battle() {
           lastHud = now;
           setHud({
             health: me.health,
+            maxHealth: me.maxHealth,
+            maxStamina: me.maxStamina,
             mounted: me.mounted,
             near: match.horses.some(
               (h) => !h.rider && Math.hypot(h.x - me.x, h.z - me.z) < 3.5,
@@ -1263,6 +1270,8 @@ export default function Battle() {
             <small>
               Kılıç yakın dövüş, mızrak uzun erişim, yay uzak menzil içindir.
               2vs2’de 1, 5vs5’te 2 ortak at bulunur.
+              At üstünde kılıç veya mızrakla yan tarafa vurmak için kamerayı o yana çevir.
+              Mızrak savunması yakın dövüş vuruşlarını, kalkan okları da karşılar.
             </small>
           )}
         </section>
@@ -1274,11 +1283,11 @@ export default function Battle() {
             <span>{team === 'blue' ? 'MAVİ' : 'KIZIL'} TAKIM · SEN</span>
             <label>
               CAN {hud.health}
-              <meter min="0" max="100" value={hud.health} />
+              <meter min="0" max={hud.maxHealth} value={hud.health} />
             </label>
             <label>
               DAYANIKLILIK {hud.stamina}
-              <meter min="0" max="100" value={hud.stamina} />
+              <meter min="0" max={hud.maxStamina} value={hud.stamina} />
             </label>
             {hud.protection > 0 && hud.health > 0 && (
               <small>Doğma koruması · {hud.protection} sn</small>
