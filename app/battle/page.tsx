@@ -75,7 +75,7 @@ export default function Battle() {
     }[],
   });
   const [networkMode, setNetworkMode] = useState(false),
-    [serverUrl, setServerUrl] = useState('http://localhost:3001'),
+    [serverUrl, setServerUrl] = useState('https://server.demirtunakyk.com'),
     [roomCode, setRoomCode] = useState(''),
     [connecting, setConnecting] = useState(false),
     [connection, setConnection] = useState({
