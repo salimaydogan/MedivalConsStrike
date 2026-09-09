@@ -6,6 +6,7 @@ export type TouchInput = {
   move: (x: number, y: number) => void;
   look: (x: number, y: number) => void;
   attack: () => void;
+  attackHold?: (held: boolean) => void;
   dodge: () => void;
   guard: (held: boolean) => void;
   sprint: (held: boolean) => void;
@@ -39,7 +40,8 @@ export default function MobileControls({ input, mounted, near, showMount=true,at
       <span style={{transform:`translate(${stick.x}px, ${stick.y}px)`}} />
     </div>
     <div className="touch-actions">{hold(input.sprint,'Hızlan')}{hold(input.guard,'Kalkan')}
-      <button className="touch-attack" onPointerDown={e=>{e.preventDefault();input.attack();}}>{attackLabel}</button>
+      <button className="touch-attack" onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);input.attackHold?.(true);input.attack();}}
+        onPointerUp={()=>input.attackHold?.(false)} onPointerCancel={()=>input.attackHold?.(false)} onLostPointerCapture={()=>input.attackHold?.(false)}>{attackLabel}</button>
       <button disabled={mounted} onPointerDown={e=>{e.preventDefault();input.dodge();}}>Kaçın</button>
       {showMount&&<button disabled={!mounted&&!near} onClick={input.mount}>{mounted?'Attan in':near?'Ata bin':'Ata yaklaş'}</button>}
     </div>

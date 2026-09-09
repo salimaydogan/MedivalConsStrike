@@ -14,6 +14,7 @@ export function parseCommand(value) {
     throw Error('Geçersiz komut');
   const {
     attack = false,
+    attackHeld,
     guard = false,
     dodge = false,
     mount = false,
@@ -22,9 +23,10 @@ export function parseCommand(value) {
   } = value;
   if (!['sword', 'spear', 'bow'].includes(weapon))
     throw Error('Geçersiz silah');
+  if (attackHeld !== undefined && typeof attackHeld !== 'boolean') throw Error('Geçersiz komut');
   if ([attack, guard, dodge, mount].some((v) => typeof v !== 'boolean'))
     throw Error('Geçersiz komut');
-  return { ...parseMovementMessage(move), attack, guard, dodge, mount, weapon };
+  return { ...parseMovementMessage(move), attack, attackHeld, guard, dodge, mount, weapon };
 }
 export function createRoomServer({
   origins = ['http://localhost:3000', 'http://127.0.0.1:3000'],

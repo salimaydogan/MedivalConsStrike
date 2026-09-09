@@ -36,6 +36,7 @@ const emptyInput = () => ({
   sprint: false,
   guard: false,
   attack: false,
+  attackHeld: false,
   dodge: false,
   mount: false,
   weapon: 'sword',
@@ -49,6 +50,7 @@ export default function Battle() {
   const [hud, setHud] = useState({
     health: 100,
     maxHealth: 100,
+    bowCharge: 0,
     maxStamina: 100,
     mounted: false,
     near: false,
@@ -99,6 +101,7 @@ export default function Battle() {
     move: (_x: number, _y: number) => {},
     look: (_x: number, _y: number) => {},
     attack: () => {},
+    attackHold: (_held: boolean) => {},
     dodge: () => {},
     guard: (_v: boolean) => {},
     sprint: (_v: boolean) => {},
@@ -546,6 +549,7 @@ export default function Battle() {
       attack: () => {
         if (!paused) input.attack = true;
       },
+      attackHold: (held) => { input.attackHeld = !paused && held; },
       dodge: () => {
         if (!paused) input.dodge = true;
       },
@@ -595,11 +599,12 @@ export default function Battle() {
     const attack = (e: MouseEvent) => {
       if (paused || !match) return;
       mouseHeld = true;
-      if (e.button === 0) input.attack = true;
+      if (e.button === 0) { input.attack = true; input.attackHeld = true; }
       if (e.button === 2) input.guard = true;
     };
     const lift = (e: MouseEvent) => {
       mouseHeld = false;
+      if (e.button === 0) input.attackHeld = false;
       if (e.button === 2) input.guard = false;
     };
     const context = (e: Event) => e.preventDefault();
@@ -880,7 +885,9 @@ export default function Battle() {
                   Math.PI / 2,
                 ),
               );
-            const draw = bowDraw(a.attackTime),
+            const draw = a.bowManual && a.attackTime >= 0
+                ? a.bowCharge * (a.hitChecked ? bowDraw(a.attackTime) : 1)
+                : bowDraw(a.attackTime),
               nock = new THREE.Vector3(-0.24 - 0.36 * draw, 0, 0);
             m.bowStrings.forEach((string, i) => {
               const end = new THREE.Vector3(-0.24, i === 0 ? -0.6 : 0.6, 0),
@@ -1027,6 +1034,7 @@ export default function Battle() {
           setHud({
             health: me.health,
             maxHealth: me.maxHealth,
+            bowCharge: me.weapon === 'bow' && me.attackTime >= 0 && !me.hitChecked ? me.bowCharge : 0,
             maxStamina: me.maxStamina,
             mounted: me.mounted,
             near: match.horses.some(
@@ -1272,6 +1280,7 @@ export default function Battle() {
               2vs2’de 1, 5vs5’te 2 ortak at bulunur.
               At üstünde kılıç veya mızrakla yan tarafa vurmak için kamerayı o yana çevir.
               Mızrak savunması yakın dövüş vuruşlarını, kalkan okları da karşılar.
+              Yay için saldırıyı basılı tut, nişan al ve bırak. Kısa geriş daha zayıf ve yavaş ok atar.
             </small>
           )}
         </section>
@@ -1292,6 +1301,7 @@ export default function Battle() {
             {hud.protection > 0 && hud.health > 0 && (
               <small>Doğma koruması · {hud.protection} sn</small>
             )}
+            {hud.weapon === 'bow' && <label>YAY GERİŞİ {Math.round(hud.bowCharge * 100)}%<meter min="0" max="1" value={hud.bowCharge} /></label>}
           </section>
           <div className="battle-feed" role="status">
             {hud.message}
