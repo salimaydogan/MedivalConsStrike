@@ -110,6 +110,23 @@
         color: #aebebc;
         line-height: 1.6;
       }
+      .roadmap-controls {
+        display: flex;
+        justify-content: flex-end;
+        margin: 18px 0;
+      }
+      .filter-button {
+        border: 1px solid #5c716f;
+        background: #1b3038;
+        color: #e9eee9;
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+      .filter-button:hover,
+      .filter-button[aria-pressed='true'] {
+        border-color: #d5b176;
+        background: #29424a;
+      }
       .phase {
         border: 1px solid #34474c;
         background: #15262d;
@@ -185,7 +202,8 @@
         white-space: nowrap;
       }
       input:focus-visible,
-      a:focus-visible {
+      a:focus-visible,
+      button:focus-visible {
         outline: 3px solid #e6bd7c;
         outline-offset: 4px;
       }
@@ -242,7 +260,8 @@
           padding: 0;
         }
         .top a,
-        .small#save-state {
+        .small#save-state,
+        .roadmap-controls {
           display: none;
         }
         .phase,
@@ -301,6 +320,16 @@
         Bu oran işaretli madde sayısını gösterir; projenin süre veya efor
         yüzdesi değildir.
       </p>
+      <div class="roadmap-controls">
+        <button
+          id="toggle-completed-phases"
+          class="filter-button"
+          type="button"
+          aria-pressed="false"
+        >
+          Tamamlanan fazları gizle
+        </button>
+      </div>
       <p id="save-state" class="small" role="status">
         İşaretlerin yalnızca bu tarayıcıda saklanır; cihazlar arasında
         eşitlenmez.
@@ -846,8 +875,13 @@
     </main>
     <script>
       const key = 'sinir-kalesi-roadmap-overrides-v1';
+      const hideCompletedKey = 'sinir-kalesi-roadmap-hide-completed-phases-v1';
       const inputs = [...document.querySelectorAll('input[data-id]')];
+      const hideCompletedButton = document.getElementById(
+        'toggle-completed-phases',
+      );
       let overrides = {};
+      let hideCompleted = false;
       try {
         const saved = JSON.parse(localStorage.getItem(key) || '{}');
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
@@ -859,6 +893,7 @@
             }
           }
         }
+        hideCompleted = localStorage.getItem(hideCompletedKey) === 'true';
       } catch {
         document.getElementById('save-state').textContent =
           'Kayıt okunamadı. Liste kullanılabilir; eski işaretlerin yüklenemedi.';
@@ -870,12 +905,30 @@
         document.getElementById('total').textContent =
           count + ' / ' + inputs.length + ' madde tamamlandı';
         document.getElementById('progress').value = percent;
+        let completedPhaseCount = 0;
         document.querySelectorAll('.phase').forEach((phase) => {
           const list = [...phase.querySelectorAll('input')];
+          const completed = list.length > 0 && list.every((x) => x.checked);
+          if (completed) completedPhaseCount += 1;
+          phase.hidden = hideCompleted && completed;
           phase.querySelector('.phase-count').textContent =
             list.filter((x) => x.checked).length + ' / ' + list.length;
         });
+        hideCompletedButton.setAttribute('aria-pressed', String(hideCompleted));
+        hideCompletedButton.textContent = hideCompleted
+          ? `Tamamlanan fazları göster (${completedPhaseCount})`
+          : `Tamamlanan fazları gizle (${completedPhaseCount})`;
       }
+      hideCompletedButton.addEventListener('click', () => {
+        hideCompleted = !hideCompleted;
+        try {
+          localStorage.setItem(hideCompletedKey, String(hideCompleted));
+        } catch {
+          document.getElementById('save-state').textContent =
+            'Tarayıcı görünüm tercihini kaydedemedi; seçim bu sayfa kapanana kadar geçerli.';
+        }
+        render();
+      });
       inputs.forEach((input) =>
         input.addEventListener('change', () => {
           overrides[input.dataset.id] = input.checked;
