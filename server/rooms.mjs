@@ -126,6 +126,8 @@ export function createRoomServer({
         if (
           !['blue', 'red'].includes(body.team) ||
           ![2, 5].includes(body.teamSize) ||
+          (body.mode !== undefined &&
+            !['tdm', 'competitive'].includes(body.mode)) ||
           (body.fillBots !== undefined && typeof body.fillBots !== 'boolean')
         )
           throw Error('Takım seçimi geçersiz');
@@ -138,6 +140,7 @@ export function createRoomServer({
           match: createMatch({
             teamSize: body.teamSize,
             fillBots: body.fillBots !== false,
+            mode: body.mode,
           }),
           clients: new Map(),
           nextPlayer: 1,
@@ -250,6 +253,7 @@ export function createRoomServer({
         const fresh = createMatch({
           teamSize: room.match.rules.teamSize,
           fillBots: room.match.rules.fillBots,
+          mode: room.match.rules.mode,
         });
         for (const c of room.clients.values()) {
           const a = room.match.actors.find((a) => a.id === c.id);

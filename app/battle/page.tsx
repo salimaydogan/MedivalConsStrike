@@ -53,7 +53,8 @@ export default function Battle() {
   const host = useRef<HTMLDivElement>(null);
   const [touch, setTouch] = useState(false),
     [team, setTeam] = useState('blue'),
-    [size, setSize] = useState(2);
+    [size, setSize] = useState(2),
+    [gameMode, setGameMode] = useState<'competitive' | 'tdm'>('competitive');
   const [hud, setHud] = useState({
     health: 100,
     maxHealth: 100,
@@ -73,6 +74,8 @@ export default function Battle() {
     paused: false,
     hurt: 0,
     message: '',
+    mode: 'tdm',
+    round: 1,
     roster: [] as {
       id: string;
       name: string;
@@ -106,10 +109,16 @@ export default function Battle() {
       _team: string,
       _size: number,
       _fillBots: boolean,
+      _mode: 'competitive' | 'tdm',
     ) => {},
     signal: (_signal: string) => {},
     weapon: (_weapon: string) => {},
-    start: (_team: string, _size: number, _classId: string) => {},
+    start: (
+      _team: string,
+      _size: number,
+      _classId: string,
+      _mode: 'competitive' | 'tdm',
+    ) => {},
     resume: () => {},
     pause: () => {},
     move: (_x: number, _y: number) => {},
@@ -477,7 +486,12 @@ export default function Battle() {
       if (!mobile) renderer.domElement.requestPointerLock?.()?.catch(() => {});
       setHud((h) => ({ ...h, paused: false }));
     };
-    const start = (team: string, size: number, classId = 'knight') => {
+    const start = (
+      team: string,
+      size: number,
+      classId = 'knight',
+      mode: 'competitive' | 'tdm' = 'competitive',
+    ) => {
       if (online) {
         const session = online;
         void request(
@@ -496,7 +510,7 @@ export default function Battle() {
         return;
       }
       removeModels();
-      match = createMatch({ teamSize: size });
+      match = createMatch({ teamSize: size, mode });
       playerId = 'local';
       const p = joinMatch(match, playerId, team, 'Sen', classId);
       match.actors.forEach(addActor);
@@ -517,6 +531,7 @@ export default function Battle() {
       team: string,
       size: number,
       fillRoomWithBots: boolean,
+      mode: 'competitive' | 'tdm',
     ) => {
       setConnecting(true);
       setError('');
@@ -538,7 +553,7 @@ export default function Battle() {
           code ? '/rooms/' + code.trim().toUpperCase() + '/join' : '/rooms',
           code
             ? { team }
-            : { team, teamSize: size, fillBots: fillRoomWithBots },
+            : { team, teamSize: size, fillBots: fillRoomWithBots, mode },
         );
         if (disposed) return;
         removeModels();
@@ -1178,12 +1193,20 @@ export default function Battle() {
             ),
             weapon: me.weapon,
             stamina: Math.round(me.stamina),
-            blue: match.score.blue,
-            red: match.score.red,
+            blue:
+              match.rules.mode === 'competitive'
+                ? match.roundScore.blue
+                : match.score.blue,
+            red:
+              match.rules.mode === 'competitive'
+                ? match.roundScore.red
+                : match.score.red,
             remaining: Math.ceil(match.rules.duration - match.elapsed),
             respawn: Math.ceil(me.respawn),
             protection: Math.ceil(me.protection),
             phase: match.phase,
+            mode: match.rules.mode,
+            round: match.round,
             paused,
             hurt,
             message:
@@ -1290,7 +1313,11 @@ export default function Battle() {
               {Math.floor(hud.remaining / 60)}:
               {String(hud.remaining % 60).padStart(2, '0')}
             </strong>
-            <small>HEDEF 15</small>
+            <small>
+              {hud.mode === 'competitive'
+                ? `RAUNT ${hud.round} · HEDEF 7`
+                : 'HEDEF 15'}
+            </small>
           </div>
           <b className="red-score">{hud.red}</b>
         </div>
@@ -1357,6 +1384,18 @@ export default function Battle() {
             </select>
           </label>
           <label className="control-mode">
+            Oyun kuralı
+            <select
+              value={gameMode}
+              onChange={(e) =>
+                setGameMode(e.target.value as 'competitive' | 'tdm')
+              }
+            >
+              <option value="competitive">Rekabetçi raund</option>
+              <option value="tdm">Team Deathmatch</option>
+            </select>
+          </label>
+          <label className="control-mode">
             Oyun
             <select
               value={networkMode ? 'online' : 'bots'}
@@ -1417,8 +1456,9 @@ export default function Battle() {
                     team,
                     size,
                     fillBots,
+                    gameMode,
                   )
-                : api.current.start(team, size, 'knight')
+                : api.current.start(team, size, 'knight', gameMode)
             }
           >
             {connecting
@@ -1614,7 +1654,7 @@ export default function Battle() {
             className={finished ? 'primary' : 'secondary'}
             onClick={() => {
               setScores(false);
-              api.current.start(team, size, 'knight');
+              api.current.start(team, size, 'knight', gameMode);
             }}
           >
             {connection.code && !connection.owner
