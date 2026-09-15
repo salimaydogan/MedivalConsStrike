@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import MobileControls from '../../components/mobile-controls';
 import { createMatch, joinMatch, stepMatch } from '../../lib/match.mjs';
-import { WORLD_SOLIDS } from '../../lib/world.mjs';
+import { WORLD_SOLIDS, DEFENSE_STRUCTURES } from '../../lib/world.mjs';
 import { WEAPONS } from '../../lib/weapons.mjs';
 import { makeWarrior, makeHorse } from '../../lib/battle-models';
 import { bowDraw } from '../../lib/bow-draw.mjs';
@@ -254,6 +254,8 @@ export default function Battle() {
     const walls = WORLD_SOLIDS.map((o) =>
       box(scene, o.w, o.h, o.d, o.x, o.h / 2, o.z, o.color),
     );
+    for (const o of DEFENSE_STRUCTURES)
+      box(scene, o.w, o.h, o.d, o.x, o.h / 2, o.z, o.color);
     for (let n = -30; n <= 30; n += 3)
       for (const s of [-1, 1]) {
         box(scene, 1.5, 1.2, 2, n, 7.6, s * 32, 0x858b80);
@@ -922,7 +924,7 @@ export default function Battle() {
           ) {
             m.group.position.set(
               a.x,
-              a.mounted ? 1.2 : (a.jumpHeight ?? 0),
+              (a.elevation ?? 0) + (a.mounted ? 1.2 : (a.jumpHeight ?? 0)),
               a.z,
             );
             m.group.userData.positionReady = true;
@@ -930,7 +932,8 @@ export default function Battle() {
             m.group.position.x += (a.x - m.group.position.x) * visualAlpha;
             m.group.position.z += (a.z - m.group.position.z) * visualAlpha;
             m.group.position.y +=
-              ((a.mounted ? 1.2 : (a.jumpHeight ?? 0)) -
+              (((a.elevation ?? 0) +
+                  (a.mounted ? 1.2 : (a.jumpHeight ?? 0))) -
                 m.group.position.y) *
               visualAlpha;
           }
@@ -1120,7 +1123,7 @@ export default function Battle() {
             arrowModels.set(p.id, mesh);
           }
           const mesh = arrowModels.get(p.id)!;
-          mesh.position.set(p.x, 1.45, p.z);
+          mesh.position.set(p.x, p.y ?? 1.45, p.z);
           mesh.rotation.y = Math.atan2(p.vx, p.vz);
         }
         for (const [id, mesh] of arrowModels)
