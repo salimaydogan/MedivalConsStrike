@@ -118,7 +118,26 @@ export function createRoomServer({
         send(res, 200, { ok: true, protocol: 1 });
         return;
       }
-      if (path === '/rooms' && req.method === 'POST') {
+      if (path === '/rooms/play' && req.method === 'POST') {
+        if (!['competitive', 'tdm'].includes(body.mode) || ![2, 5].includes(body.teamSize))
+          throw Error('Oyun seçimi geçersiz');
+        const room = [...rooms.values()].find((candidate) =>
+          !candidate.password && candidate.match.phase !== 'finished' &&
+          candidate.match.rules.mode === body.mode &&
+          candidate.match.rules.teamSize === body.teamSize &&
+          candidate.clients.size < body.teamSize * 2,
+        );
+        if (room) {
+          const count = (team) => room.match.actors.filter((a) => !a.bot && a.team === team).length;
+          const team = count('blue') <= count('red') ? 'blue' : 'red';
+          const auth = attach(room, team);
+          send(res, 201, { code: room.code, ...auth, ...snapshot(room, auth.playerId) });
+          return;
+        }
+        body.team = 'blue';
+        body.fillBots = true;
+      }
+      if ((path === '/rooms' || path === '/rooms/play') && req.method === 'POST') {
         if (rooms.size >= maxRooms) {
           send(res, 503, { error: 'Sunucu dolu' });
           return;

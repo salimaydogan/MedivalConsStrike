@@ -88,7 +88,7 @@ export default function Battle() {
       deaths: number;
     }[],
   });
-  const [networkMode, setNetworkMode] = useState(false),
+  const [networkMode, setNetworkMode] = useState(true),
     [serverUrl, setServerUrl] = useState('https://server.demirtunakyk.com'),
     [roomCode, setRoomCode] = useState(''),
     [fillBots, setFillBots] = useState(true),
@@ -555,7 +555,7 @@ export default function Battle() {
         const base = url.origin;
         const value = await request(
           base,
-          code ? '/rooms/' + code.trim().toUpperCase() + '/join' : '/rooms',
+          code ? '/rooms/' + code.trim().toUpperCase() + '/join' : '/rooms/play',
           code
             ? { team }
             : { team, teamSize: size, fillBots: fillRoomWithBots, mode },
@@ -567,7 +567,7 @@ export default function Battle() {
           url: base,
           code: value.code,
           token: value.token,
-          owner: !code,
+          owner: value.owner,
           sequence: 0,
           lastPoll: 0,
           busy: false,
@@ -577,9 +577,10 @@ export default function Battle() {
         setConnection({
           code: value.code,
           players: value.players,
-          owner: !code,
+          owner: value.owner,
         });
         applySnapshot(value);
+        setTeam(value.match.actors.find((a: Actor) => a.id === value.playerId)!.team);
         match!.actors.forEach(addActor);
         release();
         input.yaw = match!.actors.find((a) => a.id === playerId)!.heading;
@@ -951,10 +952,13 @@ export default function Battle() {
               ? 0.55
               : 0;
           m.trail.rotation.z = attackPhase * 3;
+          m.group.userData.deathElapsed = a.health === 0
+            ? (m.group.userData.deathElapsed || 0) + dt
+            : 0;
           m.group.rotation.set(
             0,
             a.heading,
-            a.health === 0 ? Math.min(1.4, (4 - a.respawn) * 3) : 0,
+            Math.min(1.4, m.group.userData.deathElapsed * 3),
           );
           m.bar.scale.x = Math.max(0.001, a.health / a.maxHealth);
           m.halo.visible = a.health > 0;
@@ -1419,12 +1423,12 @@ export default function Battle() {
               }}
             >
               <option value="bots">Botlarla oyna</option>
-              <option value="online">Online test odası</option>
+              <option value="online">Online oyna</option>
             </select>
           </label>
           {networkMode && (
             <div className="room-fields">
-              {!roomCode && (
+              {false && !roomCode && (
                 <label>
                   Oda dolgusu
                   <select
@@ -1445,7 +1449,7 @@ export default function Battle() {
                 />
               </label>
               <label>
-                Oda kodu <small>(yeni oda için boş bırak)</small>
+                Oda kodu <small>(otomatik katılmak için boş bırak)</small>
                 <input
                   value={roomCode}
                   maxLength={6}
@@ -1454,8 +1458,7 @@ export default function Battle() {
                 />
               </label>
               <small>
-                Çalışan oyun sunucusu gerekir. Genel online sunucu henüz yayında
-                değil.
+                Uygun odaya katılırsın. Yer yoksa botlarla yeni oda açılır.
               </small>
             </div>
           )}
@@ -1480,7 +1483,7 @@ export default function Battle() {
               : networkMode
                 ? roomCode
                   ? 'Odaya katıl →'
-                  : 'Oda aç →'
+                  : 'Oyna →'
                 : 'Botlarla maça başla →'}
           </button>
           {error && <p role="alert">{error}</p>}

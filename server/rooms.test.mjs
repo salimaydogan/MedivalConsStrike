@@ -1,6 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoomServer, parseCommand } from './rooms.mjs';
+test('quick play replaces bots, balances humans and creates a room when full', async () => {
+  const { server, rooms } = createRoomServer();
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const play = async () => {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/rooms/play`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'competitive', teamSize: 2 }),
+    });
+    assert.equal(response.status, 201);
+    return response.json();
+  };
+  try {
+    const first = await play();
+    assert.equal(first.match.actors.filter((a) => a.bot).length, 3);
+    for (let i = 0; i < 3; i++) assert.equal((await play()).code, first.code);
+    assert.equal(rooms.get(first.code).match.actors.filter((a) => a.bot).length, 0);
+    const second = await play();
+    assert.notEqual(second.code, first.code);
+    rooms.get(second.code).password = 'private';
+    assert.notEqual((await play()).code, second.code);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+});
 const command = (sequence) => ({
   type: 'move',
   sequence,
