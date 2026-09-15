@@ -11,10 +11,12 @@ const command = (sequence) => ({
   attack: false,
   guard: false,
   dodge: false,
+  jump: false,
 });
 test('command boundary rejects state injection and invalid action types', () => {
   assert.throws(() => parseCommand({ ...command(1), health: 100 }));
   assert.throws(() => parseCommand({ ...command(1), attack: 'yes' }));
+  assert.throws(() => parseCommand({ ...command(1), jump: 'yes' }));
   assert.throws(() => parseCommand({ ...command(1), dt: 10 }));
   assert.equal(parseCommand(command(1)).forward, 1);
 });

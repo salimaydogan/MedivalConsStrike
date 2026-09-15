@@ -10,6 +10,7 @@ export type TouchInput = {
   attackCancel?: () => void;
   attackAim?: (x: number, y: number) => void;
   dodge: () => void;
+  jump: () => void;
   guard: (held: boolean) => void;
   sprint: (held: boolean) => void;
   mount: () => void;
@@ -56,6 +57,7 @@ export default function MobileControls({ input, mounted, near, showMount=true,at
         onPointerMove={e=>{const p=attackPointer.current;if(p?.id!==e.pointerId)return;const x=e.clientX-p.x,y=e.clientY-p.y;if(Math.hypot(x,y)<18)return;input.attackAim?.(x,y);setDirection(Math.abs(x)>Math.abs(y)?(x>0?'→':'←'):(y<0?'↑':'↓'));}}
         onPointerUp={e=>{if(attackPointer.current?.id===e.pointerId)releaseAttack();}} onPointerCancel={cancelAttack} onLostPointerCapture={cancelAttack}><strong aria-hidden="true">{attackIcon}</strong>{input.attackAim&&attackLabel==='Kılıç'&&<small aria-hidden="true">{direction}</small>}</button>
       <button aria-label="Kaçın" disabled={mounted} onPointerDown={e=>{e.preventDefault();input.dodge();}}><span className="touch-action-icon" aria-hidden="true">↯</span></button>
+      <button aria-label="Zıpla" disabled={mounted} onPointerDown={e=>{e.preventDefault();input.jump();}}><span className="touch-action-icon" aria-hidden="true">↑</span></button>
       {showMount&&<button aria-label={mounted?'Attan in':near?'Ata bin':'Ata yaklaş'} disabled={!mounted&&!near} onClick={input.mount}><span className="touch-action-icon" aria-hidden="true">♞</span></button>}
     </div>
   </div>;

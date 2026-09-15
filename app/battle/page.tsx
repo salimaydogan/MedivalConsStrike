@@ -45,6 +45,7 @@ const emptyInput = () => ({
   cancelAttack: false,
   attackDirection: 'right',
   dodge: false,
+  jump: false,
   mount: false,
   weapon: 'sword',
 });
@@ -116,6 +117,7 @@ export default function Battle() {
     attackCancel: () => {},
     attackAim: (_x: number, _y: number) => {},
     dodge: () => {},
+    jump: () => {},
     guard: (_v: boolean) => {},
     sprint: (_v: boolean) => {},
     mount: () => {},
@@ -630,6 +632,9 @@ export default function Battle() {
       dodge: () => {
         if (!paused) input.dodge = true;
       },
+      jump: () => {
+        if (!paused) input.jump = true;
+      },
       guard: (v) => {
         input.guard = v;
       },
@@ -646,6 +651,7 @@ export default function Battle() {
       if (
         [
           'Space',
+          'KeyQ',
           'ArrowUp',
           'ArrowDown',
           'ArrowLeft',
@@ -661,7 +667,8 @@ export default function Battle() {
       if (e.code === 'KeyE' && !e.repeat) input.mount = true;
       if (['Digit1', 'Digit2', 'Digit3'].includes(e.code))
         input.weapon = ['sword', 'spear', 'bow'][Number(e.code.slice(-1)) - 1];
-      if (e.code === 'Space' && !e.repeat) input.dodge = true;
+      if (e.code === 'Space' && !e.repeat) input.jump = true;
+      if (e.code === 'KeyQ' && !e.repeat) input.dodge = true;
     };
     const up = (e: KeyboardEvent) => keys.delete(e.code);
     const mouse = (e: MouseEvent) => {
@@ -751,10 +758,12 @@ export default function Battle() {
             guard: !paused && input.guard,
             attack: !paused && input.attack,
             dodge: !paused && input.dodge,
+            jump: !paused && input.jump,
           };
           input.attack = false;
           input.cancelAttack = false;
           input.dodge = false;
+          input.jump = false;
           input.mount = false;
           void request(
             session.url,
@@ -824,6 +833,7 @@ export default function Battle() {
             input.attack = false;
             input.cancelAttack = false;
             input.dodge = false;
+            input.jump = false;
             input.mount = false;
             accumulator -= 1 / 60;
             for (const e of match.events) {
@@ -890,13 +900,19 @@ export default function Battle() {
             !m.group.userData.positionReady ||
             Math.hypot(m.group.position.x - a.x, m.group.position.z - a.z) > 8
           ) {
-            m.group.position.set(a.x, a.mounted ? 1.2 : 0, a.z);
+            m.group.position.set(
+              a.x,
+              a.mounted ? 1.2 : (a.jumpHeight ?? 0),
+              a.z,
+            );
             m.group.userData.positionReady = true;
           } else {
             m.group.position.x += (a.x - m.group.position.x) * visualAlpha;
             m.group.position.z += (a.z - m.group.position.z) * visualAlpha;
             m.group.position.y +=
-              ((a.mounted ? 1.2 : 0) - m.group.position.y) * visualAlpha;
+              ((a.mounted ? 1.2 : (a.jumpHeight ?? 0)) -
+                m.group.position.y) *
+              visualAlpha;
           }
           m.sword.visible = a.weapon === 'sword';
           m.spear.visible = a.weapon === 'spear';
@@ -1453,8 +1469,8 @@ export default function Battle() {
           </button>
           {!touch && (
             <div className="battle-keys">
-              WASD hareket · Sol tık kılıç · Sağ tık kalkan · Boşluk kaçın · ESC
-              duraklat
+              WASD hareket · Sol tık saldırı · Sağ tık savunma · Boşluk zıpla ·
+              Q kaçın · ESC duraklat
             </div>
           )}
         </>
@@ -1580,7 +1596,12 @@ export default function Battle() {
               ? 'Yeni maçı oda sahibi başlatır'
               : 'Yeni maç'}
           </button>
-          <a href="/">Talim avlusuna dön</a>
+          <button
+            className="secondary"
+            onClick={() => window.location.assign('/battle')}
+          >
+            Ana menüye dön
+          </button>
         </section>
       )}
     </main>

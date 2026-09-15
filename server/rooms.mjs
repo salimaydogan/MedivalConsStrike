@@ -19,6 +19,7 @@ export function parseCommand(value) {
     attackDirection = 'right',
     guard = false,
     dodge = false,
+    jump = false,
     mount = false,
     weapon = 'sword',
     ...move
@@ -27,9 +28,9 @@ export function parseCommand(value) {
     throw Error('Geçersiz silah');
   if (attackHeld !== undefined && typeof attackHeld !== 'boolean') throw Error('Geçersiz komut');
   if (!['right', 'left', 'overhead', 'thrust'].includes(attackDirection)) throw Error('Geçersiz saldırı yönü');
-  if ([attack, cancelAttack, guard, dodge, mount].some((v) => typeof v !== 'boolean'))
+  if ([attack, cancelAttack, guard, dodge, jump, mount].some((v) => typeof v !== 'boolean'))
     throw Error('Geçersiz komut');
-  return { ...parseMovementMessage(move), attack, attackHeld, cancelAttack, attackDirection, guard, dodge, mount, weapon };
+  return { ...parseMovementMessage(move), attack, attackHeld, cancelAttack, attackDirection, guard, dodge, jump, mount, weapon };
 }
 export function createRoomServer({
   origins = ['http://localhost:3000', 'http://127.0.0.1:3000'],
@@ -206,6 +207,7 @@ export function createRoomServer({
           attack: input.attack || client.input.attack === true,
           cancelAttack: input.cancelAttack || client.input.cancelAttack === true,
           dodge: input.dodge || client.input.dodge === true,
+          jump: input.jump || client.input.jump === true,
           mount: input.mount || client.input.mount === true,
         };
         send(res, 200, snapshot(room, client.id));
@@ -277,7 +279,7 @@ export function createRoomServer({
       const inputs = {};
       for (const c of room.clients.values()) {
         inputs[c.id] = now() - c.lastInput < 250 ? c.input : {};
-        c.input = { ...c.input, attack: false, cancelAttack: false, dodge: false, mount: false };
+        c.input = { ...c.input, attack: false, cancelAttack: false, dodge: false, jump: false, mount: false };
       }
       stepMatch(room.match, inputs, 1 / 30);
       for (const e of room.match.events) event(room, e);
