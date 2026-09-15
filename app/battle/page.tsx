@@ -51,6 +51,7 @@ const emptyInput = () => ({
 });
 export default function Battle() {
   const host = useRef<HTMLDivElement>(null);
+  const spectatorPointer = useRef<{ id: number; x: number; y: number } | null>(null);
   const [touch, setTouch] = useState(false),
     [team, setTeam] = useState('blue'),
     [size, setSize] = useState(2),
@@ -77,6 +78,7 @@ export default function Battle() {
     message: '',
     mode: 'tdm',
     round: 1,
+    spectating: '',
     roster: [] as {
       id: string;
       name: string;
@@ -1139,8 +1141,14 @@ export default function Battle() {
         )
           document.exitPointerLock();
         const me = match.actors.find((a) => a.id === playerId)!;
-        const visualPlayer = models.get(playerId)!.group.position;
-        const aimingBow = me.weapon === 'bow' && me.attackTime >= 0;
+        const observed =
+          me.health <= 0 && match.rules.mode === 'competitive'
+            ? match.actors.find((a) => a.team === me.team && a.health > 0) ??
+              match.actors.find((a) => a.health > 0) ??
+              me
+            : me;
+        const visualPlayer = models.get(observed.id)!.group.position;
+        const aimingBow = observed === me && me.weapon === 'bow' && me.attackTime >= 0;
         const shoulder = aimingBow ? 0.85 : 0;
         const target = new THREE.Vector3(
             visualPlayer.x + Math.cos(input.yaw) * shoulder,
@@ -1212,6 +1220,7 @@ export default function Battle() {
             phase: match.phase,
             mode: match.rules.mode,
             round: match.round,
+            spectating: observed === me ? '' : observed.name,
             paused,
             hurt,
             message:
@@ -1546,9 +1555,28 @@ export default function Battle() {
         </>
       )}
       <div className="damage-flash" style={{ opacity: hud.hurt / 0.5 }} />
+      {touch && hud.mode === 'competitive' && hud.health === 0 && !hud.paused && !finished && (
+        <div
+          className="spectator-look"
+          aria-label="İzleyici kamerası"
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            spectatorPointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+          }}
+          onPointerMove={(event) => {
+            const previous = spectatorPointer.current;
+            if (previous?.id !== event.pointerId) return;
+            api.current.look(event.clientX - previous.x, event.clientY - previous.y);
+            spectatorPointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+          }}
+          onPointerUp={() => (spectatorPointer.current = null)}
+          onPointerCancel={() => (spectatorPointer.current = null)}
+        />
+      )}
       {started && hud.health === 0 && !finished && !hud.paused && (
         <div className="battle-respawn" role="status">
           <strong>Öldün</strong>
+          {hud.spectating && <small>{hud.spectating} izleniyor</small>}
           <span>
             {hud.mode === 'competitive'
               ? hud.phase === 'round-break'
@@ -1585,7 +1613,7 @@ export default function Battle() {
           </div>
         </details>
       )}
-      {started && !finished && !hud.paused && (
+      {started && !finished && !hud.paused && hud.health > 0 && (
         <div className="weapon-select">
           {Object.entries(WEAPONS).map(([id, w], i) => (
             <button
