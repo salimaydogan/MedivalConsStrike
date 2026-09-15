@@ -140,3 +140,39 @@ test('signals are throttled and visible to teammates; good game reaches both tea
     await new Promise((r) => server.close(r));
   }
 });
+test('HTTP room can start without bots and keeps that setting on restart', async () => {
+  const { server } = createRoomServer();
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = async (path, body, token) => {
+    const response = await fetch(base + path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    return { status: response.status, data: await response.json() };
+  };
+  try {
+    const owner = await post('/rooms', {
+      team: 'blue',
+      teamSize: 2,
+      fillBots: false,
+    });
+    assert.equal(owner.status, 201);
+    assert.equal(owner.data.match.actors.length, 1);
+    assert.equal(owner.data.match.actors.filter((a) => a.bot).length, 0);
+    const restarted = await post(
+      `/rooms/${owner.data.code}/restart`,
+      {},
+      owner.data.token,
+    );
+    assert.equal(restarted.status, 200);
+    assert.equal(restarted.data.match.rules.fillBots, false);
+    assert.equal(restarted.data.match.actors.length, 1);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});

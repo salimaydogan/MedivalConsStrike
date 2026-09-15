@@ -85,6 +85,7 @@ export default function Battle() {
   const [networkMode, setNetworkMode] = useState(false),
     [serverUrl, setServerUrl] = useState('https://server.demirtunakyk.com'),
     [roomCode, setRoomCode] = useState(''),
+    [fillBots, setFillBots] = useState(true),
     [connecting, setConnecting] = useState(false),
     [connection, setConnection] = useState({
       code: '',
@@ -104,6 +105,7 @@ export default function Battle() {
       _code: string,
       _team: string,
       _size: number,
+      _fillBots: boolean,
     ) => {},
     signal: (_signal: string) => {},
     weapon: (_weapon: string) => {},
@@ -514,6 +516,7 @@ export default function Battle() {
       code: string,
       team: string,
       size: number,
+      fillRoomWithBots: boolean,
     ) => {
       setConnecting(true);
       setError('');
@@ -533,7 +536,9 @@ export default function Battle() {
         const value = await request(
           base,
           code ? '/rooms/' + code.trim().toUpperCase() + '/join' : '/rooms',
-          code ? { team } : { team, teamSize: size },
+          code
+            ? { team }
+            : { team, teamSize: size, fillBots: fillRoomWithBots },
         );
         if (disposed) return;
         removeModels();
@@ -1116,12 +1121,14 @@ export default function Battle() {
           document.exitPointerLock();
         const me = match.actors.find((a) => a.id === playerId)!;
         const visualPlayer = models.get(playerId)!.group.position;
+        const aimingBow = me.weapon === 'bow' && me.attackTime >= 0;
+        const shoulder = aimingBow ? 0.85 : 0;
         const target = new THREE.Vector3(
-            visualPlayer.x,
-            visualPlayer.y + 1.5,
-            visualPlayer.z,
+            visualPlayer.x + Math.cos(input.yaw) * shoulder,
+            visualPlayer.y + (aimingBow ? 1.65 : 1.5),
+            visualPlayer.z - Math.sin(input.yaw) * shoulder,
           ),
-          distance = 6.5;
+          distance = aimingBow ? 4.5 : 6.5;
         const desired = target
           .clone()
           .add(
@@ -1297,8 +1304,8 @@ export default function Battle() {
             <em>Meydana çık.</em>
           </h1>
           <p>
-            Boş yerleri botlar doldurur. Rakibini devir, takımına skor kazandır.
-            15 skor veya 5 dakika.
+            Oda ayarını seç. Rakibini devir, takımına skor kazandır. 15 skor
+            veya 5 dakika.
           </p>
           {touch && (
             <>
@@ -1364,6 +1371,18 @@ export default function Battle() {
           </label>
           {networkMode && (
             <div className="room-fields">
+              {!roomCode && (
+                <label>
+                  Oda dolgusu
+                  <select
+                    value={fillBots ? 'bots' : 'players'}
+                    onChange={(e) => setFillBots(e.target.value === 'bots')}
+                  >
+                    <option value="bots">Botlarla doldur</option>
+                    <option value="players">Yalnız gerçek oyuncular</option>
+                  </select>
+                </label>
+              )}
               <label>
                 Sunucu adresi
                 <input
@@ -1392,7 +1411,13 @@ export default function Battle() {
             disabled={connecting}
             onClick={() =>
               networkMode
-                ? void api.current.connect(serverUrl, roomCode, team, size)
+                ? void api.current.connect(
+                    serverUrl,
+                    roomCode,
+                    team,
+                    size,
+                    fillBots,
+                  )
                 : api.current.start(team, size, 'knight')
             }
           >

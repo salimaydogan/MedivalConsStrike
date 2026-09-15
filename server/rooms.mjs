@@ -125,7 +125,8 @@ export function createRoomServer({
         }
         if (
           !['blue', 'red'].includes(body.team) ||
-          ![2, 5].includes(body.teamSize)
+          ![2, 5].includes(body.teamSize) ||
+          (body.fillBots !== undefined && typeof body.fillBots !== 'boolean')
         )
           throw Error('Takım seçimi geçersiz');
         let code;
@@ -134,7 +135,10 @@ export function createRoomServer({
         } while (rooms.has(code));
         const room = {
           code,
-          match: createMatch({ teamSize: body.teamSize }),
+          match: createMatch({
+            teamSize: body.teamSize,
+            fillBots: body.fillBots !== false,
+          }),
           clients: new Map(),
           nextPlayer: 1,
           emptySince: now(),
@@ -243,7 +247,10 @@ export function createRoomServer({
           send(res, 403, { error: 'Yeni maçı oda sahibi başlatabilir' });
           return;
         }
-        const fresh = createMatch({ teamSize: room.match.rules.teamSize });
+        const fresh = createMatch({
+          teamSize: room.match.rules.teamSize,
+          fillBots: room.match.rules.fillBots,
+        });
         for (const c of room.clients.values()) {
           const a = room.match.actors.find((a) => a.id === c.id);
           joinMatch(fresh, c.id, a.team, a.name);
