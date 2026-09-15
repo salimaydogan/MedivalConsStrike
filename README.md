@@ -1,4 +1,4 @@
-# Sınır Kalesi — 0.3 savaş prototipi
+# MedivalConsStrike — 0.3 savaş prototipi
 
 Masaüstü tarayıcıda tek oyunculu üçüncü şahıs at sürüşü ve yaya kılıç–kalkan talimi. Online bağlantı, reklam ve hesap sistemi henüz yoktur.
 

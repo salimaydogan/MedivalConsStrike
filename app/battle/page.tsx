@@ -9,6 +9,8 @@ import { ARENA_CLASSES, applyArenaClass } from '../../lib/arena.mjs';
 import { makeWarrior, makeHorse } from '../../lib/battle-models';
 import { bowDraw } from '../../lib/bow-draw.mjs';
 import { meleePose } from '../../lib/melee-pose.mjs';
+import { attackDirection } from '../../lib/directional-combat.mjs';
+import { bowSpread } from '../../lib/bow-aim.mjs';
 
 type Match = ReturnType<typeof createMatch>;
 type Actor = Match['actors'][number];
@@ -37,6 +39,8 @@ const emptyInput = () => ({
   guard: false,
   attack: false,
   attackHeld: false,
+  cancelAttack: false,
+  attackDirection: 'right',
   dodge: false,
   mount: false,
   weapon: 'sword',
@@ -51,6 +55,7 @@ export default function Battle() {
     health: 100,
     maxHealth: 100,
     bowCharge: 0,
+    bowSpread: 0.132,
     maxStamina: 100,
     mounted: false,
     near: false,
@@ -102,6 +107,8 @@ export default function Battle() {
     look: (_x: number, _y: number) => {},
     attack: () => {},
     attackHold: (_held: boolean) => {},
+    attackCancel: () => {},
+    attackAim: (_x: number, _y: number) => {},
     dodge: () => {},
     guard: (_v: boolean) => {},
     sprint: (_v: boolean) => {},
@@ -120,7 +127,7 @@ export default function Battle() {
       );
       return;
     }
-    let mobile = matchMedia('(pointer: coarse)').matches;
+    let mobile = navigator.maxTouchPoints > 0 || matchMedia('(any-pointer: coarse)').matches;
     setTouch(mobile);
     renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.25 : 1.7));
     renderer.shadowMap.enabled = true;
@@ -330,12 +337,15 @@ export default function Battle() {
       for (const e of value.events || []) {
         if (!online || e.serial <= online.serial) continue;
         online.serial = e.serial;
-        if (e.type === 'hit' || e.type === 'block') {
+        if (e.type === 'hit' || e.type === 'block' || e.type === 'parry') {
           const a = match.actors.find((a) => a.id === e.id);
-          if (a) impact(a.x, a.z, e.type === 'block');
+          if (a) impact(a.x, a.z, e.type !== 'hit');
+          if (e.type === 'parry' && e.id === playerId) {
+            hitLabel = 'SAVUŞTURDUN · KARŞILIK VER'; effectTime = 0.8; beep(900);
+          }
           if (e.by === playerId) {
             hitPulse = 0.22;
-            hitLabel = e.type === 'block' ? 'BLOK' : 'İSABET';
+            hitLabel = e.type === 'parry' ? 'SALDIRIN SAVUŞTURULDU' : e.type === 'block' ? 'BLOK' : 'İSABET';
             effectTime = 0.5;
             beep(e.type === 'block' ? 700 : 150);
           }
@@ -550,6 +560,8 @@ export default function Battle() {
         if (!paused) input.attack = true;
       },
       attackHold: (held) => { input.attackHeld = !paused && held; },
+      attackCancel: () => { input.cancelAttack = true; input.attackHeld = false; input.attack = false; },
+      attackAim: (x, y) => { if (!paused) input.attackDirection = attackDirection(x, y); },
       dodge: () => {
         if (!paused) input.dodge = true;
       },
@@ -594,6 +606,8 @@ export default function Battle() {
       )
         return;
       input.yaw -= e.movementX * 0.003;
+      if (Math.hypot(e.movementX, e.movementY) > 3)
+        input.attackDirection = attackDirection(e.movementX, e.movementY);
       pitch = THREE.MathUtils.clamp(pitch + e.movementY * 0.003, -0.4, 1.25);
     };
     const attack = (e: MouseEvent) => {
@@ -671,6 +685,7 @@ export default function Battle() {
             dodge: !paused && input.dodge,
           };
           input.attack = false;
+          input.cancelAttack = false;
           input.dodge = false;
           input.mount = false;
           void request(
@@ -739,18 +754,22 @@ export default function Battle() {
               1 / 60,
             );
             input.attack = false;
+            input.cancelAttack = false;
             input.dodge = false;
             input.mount = false;
             accumulator -= 1 / 60;
             for (const e of match.events) {
               if (e.type === 'swing' && e.id === playerId) beep(280);
-              if (e.type === 'hit' || e.type === 'block') {
+              if (e.type === 'hit' || e.type === 'block' || e.type === 'parry') {
                 const a = match.actors.find((a) => a.id === e.id);
-                if (a) impact(a.x, a.z, e.type === 'block');
+                if (a) impact(a.x, a.z, e.type !== 'hit');
+                if (e.type === 'parry' && e.id === playerId) {
+                  hitLabel = 'SAVUŞTURDUN · KARŞILIK VER'; effectTime = 0.8; beep(900);
+                }
                 if (e.by === playerId) {
                   hitPulse = 0.22;
                   hitLabel =
-                    e.type === 'block' ? 'BLOK' : String(e.damage) + ' HASAR';
+                    e.type === 'parry' ? 'SALDIRIN SAVUŞTURULDU' : e.type === 'block' ? 'BLOK' : String(e.damage) + ' HASAR';
                   effectTime = 0.5;
                 }
               }
@@ -842,7 +861,7 @@ export default function Battle() {
             a.weapon === 'spear' ||
             (a.weapon === 'sword' && a.attackTime >= 0)
           ) {
-            const pose = meleePose(a.weapon, a.attackTime);
+            const pose = meleePose(a.weapon, a.attackTime, a.attackDirection);
             m.arms[1].rotation.set(pose.x, pose.y + (a.mounted ? a.attackOffset : 0), pose.z, 'YXZ');
             m.arms[1].position.z = -pose.thrust;
           }
@@ -1035,6 +1054,8 @@ export default function Battle() {
             health: me.health,
             maxHealth: me.maxHealth,
             bowCharge: me.weapon === 'bow' && me.attackTime >= 0 && !me.hitChecked ? me.bowCharge : 0,
+            bowSpread: bowSpread(me.weapon === 'bow' && me.attackTime >= 0 && !me.hitChecked ? me.bowCharge : 0,
+              Math.hypot(me.contactVx || 0, me.contactVz || 0), me.mounted),
             maxStamina: me.maxStamina,
             mounted: me.mounted,
             near: match.horses.some(
@@ -1276,7 +1297,10 @@ export default function Battle() {
             <p role="alert">{error}</p>
           ) : (
             <small>
-              Kılıç yakın dövüş, mızrak uzun erişim, yay uzak menzil içindir.
+              Kılıç: basılı tut, yön seç, bırakınca vur. Mobilde saldırı düğmesinde kaydır;
+              bilgisayarda fareyi sağa, sola, yukarı veya aşağı hareket ettir.
+              Darbeden hemen önce savunmaya geçerek rakibi savuştur ve karşılık ver.
+              Saldırıyı hazırlarken savunmaya basarak vazgeçebilirsin; başlayan savuruş iptal olmaz.
               2vs2’de 1, 5vs5’te 2 ortak at bulunur.
               At üstünde kılıç veya mızrakla yan tarafa vurmak için kamerayı o yana çevir.
               Mızrak savunması yakın dövüş vuruşlarını, kalkan okları da karşılar.
@@ -1287,7 +1311,11 @@ export default function Battle() {
       )}
       {started && !finished && (
         <>
-          <div className="crosshair">·</div>
+          {hud.weapon === 'bow' ? <div className="bow-reticle" aria-label={`Yay nişangâhı, geriş yüzde ${Math.round(hud.bowCharge*100)}`}>
+            <span className="bow-reticle-ring" style={{width:20+hud.bowSpread*450,height:20+hud.bowSpread*450,borderColor:hud.bowCharge>=0.95?'#aee9be':'#ffe0a3'}} />
+            <span className="bow-reticle-center">+</span>
+            <small>{Math.round(hud.bowCharge*100)}% · {hud.bowSpread<0.025?'SABİT':hud.bowSpread<0.07?'DAR':'GENİŞ'}</small>
+          </div> : <div className="crosshair">·</div>}
           <section className="battle-vitals">
             <span>{team === 'blue' ? 'MAVİ' : 'KIZIL'} TAKIM · SEN</span>
             <label>

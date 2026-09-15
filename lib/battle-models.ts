@@ -1,7 +1,17 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 type Mat = (color: number) => THREE.MeshStandardMaterial;
 export function makeWarrior(color: number, local: boolean, mat: Mat) {
   const group = new THREE.Group();
+  // All warriors share the caller's material cache; armour catches light while
+  // fabric and leather stay matte. No per-frame textures or extra lights.
+  const steel = 0x78848b, edge = 0xa5afb3, leather = 0x49372b;
+  for (const c of [steel, edge]) {
+    const material = mat(c);
+    material.metalness = 0.65;
+    material.roughness = 0.38;
+    material.flatShading = false;
+  }
   const mesh = (
     p: THREE.Object3D,
     g: THREE.BufferGeometry,
@@ -41,28 +51,51 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     h: number,
     d: number,
   ) => mesh(p, new THREE.BoxGeometry(w, h, d), c, x, y, z);
-  // Layered cuirass, surcoat, leather belt and articulated armoured limbs.
-  ell(group, 0x343e41, 0, 1.27, 0, 0.37, 0.47, 0.24);
-  ell(group, 0x879497, 0, 1.37, -0.035, 0.37, 0.34, 0.245);
-  box(group, color, 0, 1.22, -0.257, 0.25, 0.55, 0.025);
-  box(group, 0x554437, 0, 0.98, 0, 0.68, 0.1, 0.46);
-  box(group, 0xc8aa6b, 0, 0.98, -0.255, 0.13, 0.12, 0.045);
-  const skirt = mesh(
-    group,
-    new THREE.CylinderGeometry(0.28, 0.4, 0.32, 10),
-    color,
-    0,
-    0.88,
-    0,
-  );
-  skirt.scale.z = 0.7;
-  ell(group, 0xd0ab87, 0, 1.96, -0.015, 0.195, 0.245, 0.18);
-  const helmet = ell(group, 0x8c979b, 0, 2.04, 0.025, 0.225, 0.225, 0.205);
-  helmet.material = mat(0x8c979b);
-  box(group, 0x32393c, 0, 2.01, -0.18, 0.34, 0.043, 0.06);
-  box(group, 0xb7bfc0, 0, 1.92, -0.205, 0.045, 0.19, 0.055);
-  for (const x of [-0.19, 0.19])
-    box(group, 0x8c979b, x, 1.9, 0.01, 0.055, 0.25, 0.3);
+  const body = new THREE.Group();
+  group.add(body);
+  // Tailored gambeson: waist, rib cage, shoulders and neck are distinct rings.
+  const tailored = (points: number[][], c: number, depth: number) => {
+    const piece = mesh(body, new THREE.LatheGeometry(points.map(([r,y])=>new THREE.Vector2(r,y)), 16), c);
+    piece.scale.z = depth;
+    return piece;
+  };
+  tailored([[0,0.95],[0.27,0.95],[0.28,1.13],[0.335,1.4],[0.33,1.55],[0.18,1.66],[0.12,1.68],[0,1.68]],color,0.68);
+  tailored([[0.13,1.61],[0.145,1.65],[0.14,1.77],[0.1,1.78]],0x40474a,0.9);
+  // Quilted seams follow both sides of the tunic, visible from the chase camera.
+  for (const side of [-1,1]) {
+    for (let row=0;row<5;row++) for(let col=0;col<5;col++) {
+      const x=(col-2)*0.105, y=1.09+row*0.105;
+      const seam=box(body,0x514b43,x,y,side*(0.218-Math.abs(x)*0.17),0.006,0.13,0.004);
+      seam.rotation.z=(row%2?1:-1)*0.65;
+    }
+    const strap=box(body,leather,side*0.15,1.4,-0.23,0.055,0.48,0.018);
+    strap.rotation.z=side*0.16;
+  }
+  tailored([[0.27,0.96],[0.29,0.98],[0.29,1.065],[0.27,1.065]],leather,0.77);
+  box(body,0xc8aa6b,0,1.025,-0.239,0.10,0.075,0.024);
+  box(body,leather,0,1.025,-0.255,0.065,0.04,0.008);
+  // Split coat tails leave room for the leg animation and mounted pose.
+  for (const side of [-1,1]) {
+    const tail=box(body,color,side*0.16,0.81,0.09,0.28,0.34,0.25);
+    tail.rotation.z=side*0.06;
+    box(body,0x80745c,side*0.3,0.81,0.09,0.014,0.34,0.26);
+  }
+  ell(body,0xc4a080,0,1.91,-0.02,0.16,0.20,0.155);
+  // Open-faced ridged helmet, brow band, cheek guards and nasal protection.
+  const helmet=mesh(body,new THREE.LatheGeometry([
+    new THREE.Vector2(0.187,0),new THREE.Vector2(0.19,0.10),
+    new THREE.Vector2(0.16,0.21),new THREE.Vector2(0.09,0.28),new THREE.Vector2(0,0.32),
+  ],16),steel,0,1.94,0.015);
+  helmet.scale.z=0.93;
+  const band=mesh(body,new THREE.CylinderGeometry(0.194,0.194,0.045,16,1,true),edge,0,1.96,0.015);
+  band.scale.z=0.93;
+  box(body,0x2c2926,0,1.925,-0.158,0.22,0.035,0.018);
+  box(body,edge,0,1.9,-0.184,0.032,0.17,0.027);
+  for(const side of [-1,1]) {
+    const cheek=box(body,steel,side*0.15,1.86,-0.006,0.035,0.19,0.18);
+    cheek.rotation.z=side*0.13;
+    ell(body,edge,side*0.17,1.965,-0.07,0.018,0.018,0.018);
+  }
   const arms: THREE.Group[] = [],
     legs: THREE.Group[] = [],
     knees: THREE.Group[] = [];
@@ -71,25 +104,30 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     arm.position.set(side * 0.43, 1.58, 0);
     group.add(arm);
     arms.push(arm);
-    ell(arm, 0x96a2a3, 0, -0.035, 0, 0.205, 0.16, 0.23);
+    ell(arm, steel, 0, -0.035, 0, 0.16, 0.13, 0.18);
+    ell(arm, edge, 0, -0.12, 0, 0.155, 0.045, 0.17);
     mesh(
       arm,
       new THREE.CylinderGeometry(0.12, 0.1, 0.3, 8),
-      0x596569,
+      color,
       0,
       -0.24,
       0,
     );
-    ell(arm, 0x9da9aa, 0, -0.4, 0, 0.12, 0.1, 0.12);
+    ell(arm, steel, 0, -0.4, 0, 0.105, 0.08, 0.11);
     mesh(
       arm,
       new THREE.CylinderGeometry(0.11, 0.08, 0.24, 8),
-      0x849094,
+      steel,
       0,
       -0.53,
       0,
     );
-    ell(arm, 0x594838, 0, -0.69, 0, 0.09, 0.1, 0.09);
+    // Closed glove surrounds the grip socket; thumb is offset from the knuckles.
+    box(arm, leather, 0, -0.69, 0.025, 0.12, 0.13, 0.08);
+    for(let finger=0;finger<3;finger++)
+      ell(arm,leather,0,-0.65-finger*0.033,-0.027,0.061,0.016,0.041);
+    ell(arm,leather,side*0.055,-0.66,-0.01,0.029,0.05,0.035);
     const leg = new THREE.Group();
     leg.position.set(side * 0.18, 0.87, 0);
     group.add(leg);
@@ -106,16 +144,17 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     knee.position.y = -0.37;
     leg.add(knee);
     knees.push(knee);
-    ell(knee, 0xa1abab, 0, 0, -0.04, 0.135, 0.12, 0.13);
+    ell(knee, steel, 0, 0, -0.04, 0.115, 0.105, 0.115);
     mesh(
       knee,
       new THREE.CylinderGeometry(0.11, 0.08, 0.32, 9),
-      0x778184,
+      leather,
       0,
       -0.18,
       0,
     );
-    ell(knee, 0x393631, 0, -0.37, -0.065, 0.12, 0.1, 0.2);
+    ell(knee, leather, 0, -0.37, -0.065, 0.10, 0.08, 0.19);
+    box(knee,0x272725,0,-0.428,-0.06,0.19,0.028,0.31);
   }
   const elbows = arms.map((arm) => {
     const elbow = new THREE.Group();
@@ -135,6 +174,30 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     elbow.add(grip);
     return grip;
   });
+  // Collapse rigid detail by material at each joint, never across animated joints.
+  // Many quilt stitches still cost one draw call per material, not one per stitch.
+  for (const part of [body, ...arms, ...elbows, ...legs, ...knees]) {
+    const buckets = new Map<THREE.Material, THREE.Mesh[]>();
+    for (const child of [...part.children]) {
+      if (!(child instanceof THREE.Mesh) || Array.isArray(child.material)) continue;
+      const bucket = buckets.get(child.material) || [];
+      bucket.push(child); buckets.set(child.material,bucket);
+    }
+    for (const [material, pieces] of buckets) {
+      if (pieces.length < 2) continue;
+      const geometries = pieces.map(piece=>{
+        piece.updateMatrix();
+        return piece.geometry.clone().applyMatrix4(piece.matrix);
+      });
+      const geometry = mergeGeometries(geometries);
+      geometries.forEach(g=>g.dispose());
+      if (!geometry) continue;
+      pieces.forEach(piece=>{part.remove(piece);piece.geometry.dispose();});
+      const combined = new THREE.Mesh(geometry,material);
+      combined.castShadow=true; combined.receiveShadow=true;
+      part.add(combined);
+    }
+  }
   const sword = new THREE.Group();
   grips[1].add(sword);
   box(sword, 0x514031, 0, 0, 0, 0.065, 0.18, 0.065);

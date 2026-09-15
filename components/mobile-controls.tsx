@@ -7,6 +7,8 @@ export type TouchInput = {
   look: (x: number, y: number) => void;
   attack: () => void;
   attackHold?: (held: boolean) => void;
+  attackCancel?: () => void;
+  attackAim?: (x: number, y: number) => void;
   dodge: () => void;
   guard: (held: boolean) => void;
   sprint: (held: boolean) => void;
@@ -17,6 +19,15 @@ export type TouchInput = {
 export default function MobileControls({ input, mounted, near, showMount=true,attackLabel="Kılıç" }: { input: TouchInput; mounted: boolean; near: boolean; showMount?:boolean;attackLabel?:string }) {
   const [stick,setStick]=useState({x:0,y:0});
   const stickId=useRef<number|null>(null);
+  const attackPointer = useRef<{id:number;x:number;y:number}|null>(null);
+  const [direction, setDirection] = useState('Sağ');
+  const releaseAttack = () => { attackPointer.current=null; input.attackHold?.(false); };
+  const cancelAttack = () => {
+    if (!attackPointer.current) return;
+    attackPointer.current=null;
+    input.attackCancel?.();
+    input.attackHold?.(false);
+  };
   const camera=useRef<{id:number;x:number;y:number}|null>(null);
   const stopStick=()=>{stickId.current=null;setStick({x:0,y:0});input.move(0,0);};
   const updateStick=(e:PointerEvent<HTMLDivElement>)=>{
@@ -40,8 +51,9 @@ export default function MobileControls({ input, mounted, near, showMount=true,at
       <span style={{transform:`translate(${stick.x}px, ${stick.y}px)`}} />
     </div>
     <div className="touch-actions">{hold(input.sprint,'Hızlan')}{hold(input.guard,'Kalkan')}
-      <button className="touch-attack" onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);input.attackHold?.(true);input.attack();}}
-        onPointerUp={()=>input.attackHold?.(false)} onPointerCancel={()=>input.attackHold?.(false)} onLostPointerCapture={()=>input.attackHold?.(false)}>{attackLabel}</button>
+      <button className="touch-attack" aria-label={`Saldır: ${attackLabel}. Basılı tut, yön için kaydır, bırakınca vur.`} onPointerDown={e=>{if(attackPointer.current)return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);attackPointer.current={id:e.pointerId,x:e.clientX,y:e.clientY};input.attackHold?.(true);input.attack();}}
+        onPointerMove={e=>{const p=attackPointer.current;if(p?.id!==e.pointerId)return;const x=e.clientX-p.x,y=e.clientY-p.y;if(Math.hypot(x,y)<18)return;input.attackAim?.(x,y);setDirection(Math.abs(x)>Math.abs(y)?(x>0?'Sağ':'Sol'):(y<0?'Üst':'Sapla'));}}
+        onPointerUp={e=>{if(attackPointer.current?.id===e.pointerId)releaseAttack();}} onPointerCancel={cancelAttack} onLostPointerCapture={cancelAttack}><strong>SALDIR</strong><small>{attackLabel}</small>{input.attackAim&&attackLabel==='Kılıç'&&<small>{direction} ↔</small>}</button>
       <button disabled={mounted} onPointerDown={e=>{e.preventDefault();input.dodge();}}>Kaçın</button>
       {showMount&&<button disabled={!mounted&&!near} onClick={input.mount}>{mounted?'Attan in':near?'Ata bin':'Ata yaklaş'}</button>}
     </div>
