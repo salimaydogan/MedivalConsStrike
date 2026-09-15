@@ -5,7 +5,6 @@ import MobileControls from '../../components/mobile-controls';
 import { createMatch, joinMatch, stepMatch } from '../../lib/match.mjs';
 import { WORLD_SOLIDS } from '../../lib/world.mjs';
 import { WEAPONS } from '../../lib/weapons.mjs';
-import { ARENA_CLASSES, applyArenaClass } from '../../lib/arena.mjs';
 import { makeWarrior, makeHorse } from '../../lib/battle-models';
 import { bowDraw } from '../../lib/bow-draw.mjs';
 import { meleePose } from '../../lib/melee-pose.mjs';
@@ -14,6 +13,10 @@ import { bowSpread } from '../../lib/bow-aim.mjs';
 
 type Match = ReturnType<typeof createMatch>;
 type Actor = Match['actors'][number];
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+};
 type ServerResponse = {
   match: Match;
   players: number;
@@ -49,8 +52,7 @@ export default function Battle() {
   const host = useRef<HTMLDivElement>(null);
   const [touch, setTouch] = useState(false),
     [team, setTeam] = useState('blue'),
-    [size, setSize] = useState(2),
-    [loadout, setLoadout] = useState('knight');
+    [size, setSize] = useState(2);
   const [hud, setHud] = useState({
     health: 100,
     maxHealth: 100,
@@ -91,6 +93,10 @@ export default function Battle() {
     [signalText, setSignalText] = useState('');
   const [error, setError] = useState(''),
     [scores, setScores] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
+    null,
+  );
+  const [installMessage, setInstallMessage] = useState('');
   const api = useRef({
     connect: async (
       _url: string,
@@ -116,6 +122,48 @@ export default function Battle() {
     mode: (_v: boolean) => {},
   });
   useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker.register('/sw.js');
+    }
+    const captureInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    const finishInstall = () => {
+      setInstallPrompt(null);
+      setInstallMessage(
+        'Oyun telefona eklendi. Kısayoldan tam ekran açabilirsin.',
+      );
+    };
+    window.addEventListener('beforeinstallprompt', captureInstallPrompt);
+    window.addEventListener('appinstalled', finishInstall);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', captureInstallPrompt);
+      window.removeEventListener('appinstalled', finishInstall);
+    };
+  }, []);
+  const installOrFullscreen = async () => {
+    setInstallMessage('');
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      setInstallPrompt(null);
+      if (choice.outcome === 'accepted') return;
+    }
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setInstallMessage(
+          'Tam ekran açıldı. Kalıcı kısayol için tarayıcı menüsünden “Ana ekrana ekle”yi seç.',
+        );
+      }
+    } catch {
+      setInstallMessage(
+        'Kısayol için tarayıcı menüsünü açıp “Ana ekrana ekle”yi seç. Kısayoldan açıldığında oyun tam ekran çalışır.',
+      );
+    }
+  };
+  useEffect(() => {
     if (!host.current) return;
     const root = host.current;
     let renderer: THREE.WebGLRenderer;
@@ -127,7 +175,9 @@ export default function Battle() {
       );
       return;
     }
-    let mobile = navigator.maxTouchPoints > 0 || matchMedia('(any-pointer: coarse)').matches;
+    let mobile =
+      navigator.maxTouchPoints > 0 ||
+      matchMedia('(any-pointer: coarse)').matches;
     setTouch(mobile);
     renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.25 : 1.7));
     renderer.shadowMap.enabled = true;
@@ -341,11 +391,18 @@ export default function Battle() {
           const a = match.actors.find((a) => a.id === e.id);
           if (a) impact(a.x, a.z, e.type !== 'hit');
           if (e.type === 'parry' && e.id === playerId) {
-            hitLabel = 'SAVUŞTURDUN · KARŞILIK VER'; effectTime = 0.8; beep(900);
+            hitLabel = 'SAVUŞTURDUN · KARŞILIK VER';
+            effectTime = 0.8;
+            beep(900);
           }
           if (e.by === playerId) {
             hitPulse = 0.22;
-            hitLabel = e.type === 'parry' ? 'SALDIRIN SAVUŞTURULDU' : e.type === 'block' ? 'BLOK' : 'İSABET';
+            hitLabel =
+              e.type === 'parry'
+                ? 'SALDIRIN SAVUŞTURULDU'
+                : e.type === 'block'
+                  ? 'BLOK'
+                  : 'İSABET';
             effectTime = 0.5;
             beep(e.type === 'block' ? 700 : 150);
           }
@@ -500,7 +557,7 @@ export default function Battle() {
         release();
         input.yaw = match!.actors.find((a) => a.id === playerId)!.heading;
         input.weapon =
-          ARENA_CLASSES[loadout as keyof typeof ARENA_CLASSES]?.weapon ??
+          match!.actors.find((actor) => actor.id === playerId)?.weapon ??
           'sword';
         cameraReady = false;
         setHud((h) => ({ ...h, phase: 'playing', paused: false }));
@@ -559,9 +616,17 @@ export default function Battle() {
       attack: () => {
         if (!paused) input.attack = true;
       },
-      attackHold: (held) => { input.attackHeld = !paused && held; },
-      attackCancel: () => { input.cancelAttack = true; input.attackHeld = false; input.attack = false; },
-      attackAim: (x, y) => { if (!paused) input.attackDirection = attackDirection(x, y); },
+      attackHold: (held) => {
+        input.attackHeld = !paused && held;
+      },
+      attackCancel: () => {
+        input.cancelAttack = true;
+        input.attackHeld = false;
+        input.attack = false;
+      },
+      attackAim: (x, y) => {
+        if (!paused) input.attackDirection = attackDirection(x, y);
+      },
       dodge: () => {
         if (!paused) input.dodge = true;
       },
@@ -613,7 +678,10 @@ export default function Battle() {
     const attack = (e: MouseEvent) => {
       if (paused || !match) return;
       mouseHeld = true;
-      if (e.button === 0) { input.attack = true; input.attackHeld = true; }
+      if (e.button === 0) {
+        input.attack = true;
+        input.attackHeld = true;
+      }
       if (e.button === 2) input.guard = true;
     };
     const lift = (e: MouseEvent) => {
@@ -760,16 +828,26 @@ export default function Battle() {
             accumulator -= 1 / 60;
             for (const e of match.events) {
               if (e.type === 'swing' && e.id === playerId) beep(280);
-              if (e.type === 'hit' || e.type === 'block' || e.type === 'parry') {
+              if (
+                e.type === 'hit' ||
+                e.type === 'block' ||
+                e.type === 'parry'
+              ) {
                 const a = match.actors.find((a) => a.id === e.id);
                 if (a) impact(a.x, a.z, e.type !== 'hit');
                 if (e.type === 'parry' && e.id === playerId) {
-                  hitLabel = 'SAVUŞTURDUN · KARŞILIK VER'; effectTime = 0.8; beep(900);
+                  hitLabel = 'SAVUŞTURDUN · KARŞILIK VER';
+                  effectTime = 0.8;
+                  beep(900);
                 }
                 if (e.by === playerId) {
                   hitPulse = 0.22;
                   hitLabel =
-                    e.type === 'parry' ? 'SALDIRIN SAVUŞTURULDU' : e.type === 'block' ? 'BLOK' : String(e.damage) + ' HASAR';
+                    e.type === 'parry'
+                      ? 'SALDIRIN SAVUŞTURULDU'
+                      : e.type === 'block'
+                        ? 'BLOK'
+                        : String(e.damage) + ' HASAR';
                   effectTime = 0.5;
                 }
               }
@@ -862,7 +940,12 @@ export default function Battle() {
             (a.weapon === 'sword' && a.attackTime >= 0)
           ) {
             const pose = meleePose(a.weapon, a.attackTime, a.attackDirection);
-            m.arms[1].rotation.set(pose.x, pose.y + (a.mounted ? a.attackOffset : 0), pose.z, 'YXZ');
+            m.arms[1].rotation.set(
+              pose.x,
+              pose.y + (a.mounted ? a.attackOffset : 0),
+              pose.z,
+              'YXZ',
+            );
             m.arms[1].position.z = -pose.thrust;
           }
           if (a.weapon === 'spear' && a.blocking) {
@@ -904,9 +987,10 @@ export default function Battle() {
                   Math.PI / 2,
                 ),
               );
-            const draw = a.bowManual && a.attackTime >= 0
-                ? a.bowCharge * (a.hitChecked ? bowDraw(a.attackTime) : 1)
-                : bowDraw(a.attackTime),
+            const draw =
+                a.bowManual && a.attackTime >= 0
+                  ? a.bowCharge * (a.hitChecked ? bowDraw(a.attackTime) : 1)
+                  : bowDraw(a.attackTime),
               nock = new THREE.Vector3(-0.24 - 0.36 * draw, 0, 0);
             m.bowStrings.forEach((string, i) => {
               const end = new THREE.Vector3(-0.24, i === 0 ? -0.6 : 0.6, 0),
@@ -1053,9 +1137,17 @@ export default function Battle() {
           setHud({
             health: me.health,
             maxHealth: me.maxHealth,
-            bowCharge: me.weapon === 'bow' && me.attackTime >= 0 && !me.hitChecked ? me.bowCharge : 0,
-            bowSpread: bowSpread(me.weapon === 'bow' && me.attackTime >= 0 && !me.hitChecked ? me.bowCharge : 0,
-              Math.hypot(me.contactVx || 0, me.contactVz || 0), me.mounted),
+            bowCharge:
+              me.weapon === 'bow' && me.attackTime >= 0 && !me.hitChecked
+                ? me.bowCharge
+                : 0,
+            bowSpread: bowSpread(
+              me.weapon === 'bow' && me.attackTime >= 0 && !me.hitChecked
+                ? me.bowCharge
+                : 0,
+              Math.hypot(me.contactVx || 0, me.contactVz || 0),
+              me.mounted,
+            ),
             maxStamina: me.maxStamina,
             mounted: me.mounted,
             near: match.horses.some(
@@ -1192,18 +1284,21 @@ export default function Battle() {
             Boş yerleri botlar doldurur. Rakibini devir, takımına skor kazandır.
             15 skor veya 5 dakika.
           </p>
-          <div className="class-choice" aria-label="Arena sınıfı">
-            {Object.entries(ARENA_CLASSES).map(([id, profile]) => (
+          {touch && (
+            <>
               <button
-                key={id}
-                aria-pressed={loadout === id}
-                onClick={() => setLoadout(id)}
+                className="mobile-install"
+                type="button"
+                onClick={() => void installOrFullscreen()}
               >
-                <strong>{profile.label}</strong>
-                <small>{profile.description}</small>
+                <span aria-hidden="true">⛶</span>
+                Telefona ekle / tam ekran
               </button>
-            ))}
-          </div>
+              {installMessage && (
+                <output className="install-message">{installMessage}</output>
+              )}
+            </>
+          )}
           <div className="team-choice">
             <button
               aria-pressed={team === 'blue'}
@@ -1282,7 +1377,7 @@ export default function Battle() {
             onClick={() =>
               networkMode
                 ? void api.current.connect(serverUrl, roomCode, team, size)
-                : api.current.start(team, size, loadout)
+                : api.current.start(team, size, 'knight')
             }
           >
             {connecting
@@ -1293,29 +1388,37 @@ export default function Battle() {
                   : 'Oda aç →'
                 : 'Botlarla maça başla →'}
           </button>
-          {error ? (
-            <p role="alert">{error}</p>
-          ) : (
-            <small>
-              Kılıç: basılı tut, yön seç, bırakınca vur. Mobilde saldırı düğmesinde kaydır;
-              bilgisayarda fareyi sağa, sola, yukarı veya aşağı hareket ettir.
-              Darbeden hemen önce savunmaya geçerek rakibi savuştur ve karşılık ver.
-              Saldırıyı hazırlarken savunmaya basarak vazgeçebilirsin; başlayan savuruş iptal olmaz.
-              2vs2’de 1, 5vs5’te 2 ortak at bulunur.
-              At üstünde kılıç veya mızrakla yan tarafa vurmak için kamerayı o yana çevir.
-              Mızrak savunması yakın dövüş vuruşlarını, kalkan okları da karşılar.
-              Yay için saldırıyı basılı tut, nişan al ve bırak. Kısa geriş daha zayıf ve yavaş ok atar.
-            </small>
-          )}
+          {error && <p role="alert">{error}</p>}
         </section>
       )}
       {started && !finished && (
         <>
-          {hud.weapon === 'bow' ? <div className="bow-reticle" aria-label={`Yay nişangâhı, geriş yüzde ${Math.round(hud.bowCharge*100)}`}>
-            <span className="bow-reticle-ring" style={{width:20+hud.bowSpread*450,height:20+hud.bowSpread*450,borderColor:hud.bowCharge>=0.95?'#aee9be':'#ffe0a3'}} />
-            <span className="bow-reticle-center">+</span>
-            <small>{Math.round(hud.bowCharge*100)}% · {hud.bowSpread<0.025?'SABİT':hud.bowSpread<0.07?'DAR':'GENİŞ'}</small>
-          </div> : <div className="crosshair">·</div>}
+          {hud.weapon === 'bow' ? (
+            <div
+              className="bow-reticle"
+              aria-label={`Yay nişangâhı, geriş yüzde ${Math.round(hud.bowCharge * 100)}`}
+            >
+              <span
+                className="bow-reticle-ring"
+                style={{
+                  width: 20 + hud.bowSpread * 450,
+                  height: 20 + hud.bowSpread * 450,
+                  borderColor: hud.bowCharge >= 0.95 ? '#aee9be' : '#ffe0a3',
+                }}
+              />
+              <span className="bow-reticle-center">+</span>
+              <small>
+                {Math.round(hud.bowCharge * 100)}% ·{' '}
+                {hud.bowSpread < 0.025
+                  ? 'SABİT'
+                  : hud.bowSpread < 0.07
+                    ? 'DAR'
+                    : 'GENİŞ'}
+              </small>
+            </div>
+          ) : (
+            <div className="crosshair">·</div>
+          )}
           <section className="battle-vitals">
             <span>{team === 'blue' ? 'MAVİ' : 'KIZIL'} TAKIM · SEN</span>
             <label>
@@ -1329,7 +1432,12 @@ export default function Battle() {
             {hud.protection > 0 && hud.health > 0 && (
               <small>Doğma koruması · {hud.protection} sn</small>
             )}
-            {hud.weapon === 'bow' && <label>YAY GERİŞİ {Math.round(hud.bowCharge * 100)}%<meter min="0" max="1" value={hud.bowCharge} /></label>}
+            {hud.weapon === 'bow' && (
+              <label>
+                YAY GERİŞİ {Math.round(hud.bowCharge * 100)}%
+                <meter min="0" max="1" value={hud.bowCharge} />
+              </label>
+            )}
           </section>
           <div className="battle-feed" role="status">
             {hud.message}
@@ -1465,7 +1573,7 @@ export default function Battle() {
             className={finished ? 'primary' : 'secondary'}
             onClick={() => {
               setScores(false);
-              api.current.start(team, size, loadout);
+              api.current.start(team, size, 'knight');
             }}
           >
             {connection.code && !connection.owner

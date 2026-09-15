@@ -20,7 +20,7 @@ export default function MobileControls({ input, mounted, near, showMount=true,at
   const [stick,setStick]=useState({x:0,y:0});
   const stickId=useRef<number|null>(null);
   const attackPointer = useRef<{id:number;x:number;y:number}|null>(null);
-  const [direction, setDirection] = useState('Sağ');
+  const [direction, setDirection] = useState('→');
   const releaseAttack = () => { attackPointer.current=null; input.attackHold?.(false); };
   const cancelAttack = () => {
     if (!attackPointer.current) return;
@@ -36,9 +36,10 @@ export default function MobileControls({ input, mounted, near, showMount=true,at
     const length=Math.hypot(x,y);if(length>1){x/=length;y/=length;}
     setStick({x:x*radius,y:y*radius});input.move(length<.15?0:x,length<.15?0:-y);
   };
-  const hold=(action:(held:boolean)=>void,label:string,className='')=><button className={className}
+  const hold=(action:(held:boolean)=>void,label:string,icon:string,className='')=><button className={className} aria-label={label}
     onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);action(true);}}
-    onPointerUp={()=>action(false)} onPointerCancel={()=>action(false)} onLostPointerCapture={()=>action(false)}>{label}</button>;
+    onPointerUp={()=>action(false)} onPointerCancel={()=>action(false)} onLostPointerCapture={()=>action(false)}><span className="touch-action-icon" aria-hidden="true">{icon}</span></button>;
+  const attackIcon=attackLabel==='Yay'?'➳':attackLabel==='Mızrak'?'⌁':'⚔';
   return <div className="touch-controls">
     <div className="touch-look" aria-label="Kamera: parmağınla sürükle"
       onPointerDown={e=>{if(camera.current)return;e.currentTarget.setPointerCapture(e.pointerId);camera.current={id:e.pointerId,x:e.clientX,y:e.clientY};}}
@@ -50,12 +51,12 @@ export default function MobileControls({ input, mounted, near, showMount=true,at
       onPointerUp={stopStick} onPointerCancel={stopStick} onLostPointerCapture={stopStick}>
       <span style={{transform:`translate(${stick.x}px, ${stick.y}px)`}} />
     </div>
-    <div className="touch-actions">{hold(input.sprint,'Hızlan')}{hold(input.guard,'Kalkan')}
+    <div className="touch-actions">{hold(input.sprint,'Hızlan','⚡')}{hold(input.guard,'Kalkan','🛡')}
       <button className="touch-attack" aria-label={`Saldır: ${attackLabel}. Basılı tut, yön için kaydır, bırakınca vur.`} onPointerDown={e=>{if(attackPointer.current)return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);attackPointer.current={id:e.pointerId,x:e.clientX,y:e.clientY};input.attackHold?.(true);input.attack();}}
-        onPointerMove={e=>{const p=attackPointer.current;if(p?.id!==e.pointerId)return;const x=e.clientX-p.x,y=e.clientY-p.y;if(Math.hypot(x,y)<18)return;input.attackAim?.(x,y);setDirection(Math.abs(x)>Math.abs(y)?(x>0?'Sağ':'Sol'):(y<0?'Üst':'Sapla'));}}
-        onPointerUp={e=>{if(attackPointer.current?.id===e.pointerId)releaseAttack();}} onPointerCancel={cancelAttack} onLostPointerCapture={cancelAttack}><strong>SALDIR</strong><small>{attackLabel}</small>{input.attackAim&&attackLabel==='Kılıç'&&<small>{direction} ↔</small>}</button>
-      <button disabled={mounted} onPointerDown={e=>{e.preventDefault();input.dodge();}}>Kaçın</button>
-      {showMount&&<button disabled={!mounted&&!near} onClick={input.mount}>{mounted?'Attan in':near?'Ata bin':'Ata yaklaş'}</button>}
+        onPointerMove={e=>{const p=attackPointer.current;if(p?.id!==e.pointerId)return;const x=e.clientX-p.x,y=e.clientY-p.y;if(Math.hypot(x,y)<18)return;input.attackAim?.(x,y);setDirection(Math.abs(x)>Math.abs(y)?(x>0?'→':'←'):(y<0?'↑':'↓'));}}
+        onPointerUp={e=>{if(attackPointer.current?.id===e.pointerId)releaseAttack();}} onPointerCancel={cancelAttack} onLostPointerCapture={cancelAttack}><strong aria-hidden="true">{attackIcon}</strong>{input.attackAim&&attackLabel==='Kılıç'&&<small aria-hidden="true">{direction}</small>}</button>
+      <button aria-label="Kaçın" disabled={mounted} onPointerDown={e=>{e.preventDefault();input.dodge();}}><span className="touch-action-icon" aria-hidden="true">↯</span></button>
+      {showMount&&<button aria-label={mounted?'Attan in':near?'Ata bin':'Ata yaklaş'} disabled={!mounted&&!near} onClick={input.mount}><span className="touch-action-icon" aria-hidden="true">♞</span></button>}
     </div>
   </div>;
 }
