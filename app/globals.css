@@ -18,3 +18,4 @@
 
 .bow-reticle{position:absolute;left:50%;top:50%;z-index:5;pointer-events:none;color:#fff2d0;text-shadow:0 1px 3px #000;display:grid;place-items:center}.bow-reticle-ring{position:absolute;border:2px solid;border-radius:50%;box-shadow:0 0 0 1px #0008;transition:width .1s linear,height .1s linear,border-color .1s}.bow-reticle-center{position:absolute;font:22px monospace}.bow-reticle small{position:absolute;top:52px;white-space:nowrap;font-size:11px;background:#182020b8;padding:3px 6px;border-radius:4px}
 .spectator-look{position:absolute;inset:0;z-index:3;touch-action:none}.battle-respawn small{display:block;margin-top:8px;color:#e8d09f}
+.battle-respawn.spectator-status{top:auto;bottom:18px;max-width:90%;transform:translateX(-50%);padding:8px 14px;z-index:5}.battle-respawn.spectator-status strong{font-size:16px}.battle-respawn.spectator-status span{font-size:12px;white-space:normal;margin-top:4px}.battle-respawn.spectator-status small{margin-top:4px}

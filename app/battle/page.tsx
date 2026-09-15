@@ -825,7 +825,7 @@ export default function Battle() {
               session.busy = false;
             });
         }
-        if (!online && !paused && match.phase === 'playing') {
+        if (!online && !paused && match.phase !== 'finished') {
           accumulator = Math.min(accumulator + dt, 0.1);
           while (accumulator >= 1 / 60) {
             input.forward = THREE.MathUtils.clamp(
@@ -1574,7 +1574,7 @@ export default function Battle() {
         />
       )}
       {started && hud.health === 0 && !finished && !hud.paused && (
-        <div className="battle-respawn" role="status">
+        <div className={`battle-respawn ${hud.mode === 'competitive' ? 'spectator-status' : ''}`} role="status">
           <strong>Öldün</strong>
           {hud.spectating && <small>{hud.spectating} izleniyor</small>}
           <span>
