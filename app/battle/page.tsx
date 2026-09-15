@@ -69,6 +69,7 @@ export default function Battle() {
     red: 0,
     remaining: 300,
     respawn: 0,
+    roundBreak: 0,
     protection: 0,
     phase: 'lobby',
     paused: false,
@@ -1206,6 +1207,7 @@ export default function Battle() {
                 : match.score.red,
             remaining: Math.ceil(match.rules.duration - match.elapsed),
             respawn: Math.ceil(me.respawn),
+            roundBreak: Math.ceil(match.roundBreak || 0),
             protection: Math.ceil(me.protection),
             phase: match.phase,
             mode: match.rules.mode,
@@ -1547,10 +1549,16 @@ export default function Battle() {
       {started && hud.health === 0 && !finished && !hud.paused && (
         <div className="battle-respawn" role="status">
           <strong>Öldün</strong>
-          <span>{hud.respawn} saniyede yeniden doğacaksın</span>
+          <span>
+            {hud.mode === 'competitive'
+              ? hud.phase === 'round-break'
+                ? `${hud.roundBreak} saniye sonra yeni raund`
+                : 'Takımının raundu tamamlamasını bekle'
+              : `${hud.respawn} saniyede yeniden doğacaksın`}
+          </span>
         </div>
       )}
-      {touch && started && !hud.paused && !finished && hud.health > 0 && (
+      {touch && hud.phase === 'playing' && !hud.paused && hud.health > 0 && (
         <MobileControls
           input={api.current}
           mounted={hud.mounted}
