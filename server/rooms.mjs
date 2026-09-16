@@ -119,7 +119,7 @@ export function createRoomServer({
         return;
       }
       if (path === '/rooms/play' && req.method === 'POST') {
-        if (!['competitive', 'tdm'].includes(body.mode) || ![2, 5].includes(body.teamSize))
+        if (!['competitive', 'tdm', 'ctf'].includes(body.mode) || ![2, 5].includes(body.teamSize))
           throw Error('Oyun seçimi geçersiz');
         const room = [...rooms.values()].find((candidate) =>
           !candidate.password && candidate.match.phase !== 'finished' &&
@@ -146,7 +146,7 @@ export function createRoomServer({
           !['blue', 'red'].includes(body.team) ||
           ![2, 5].includes(body.teamSize) ||
           (body.mode !== undefined &&
-            !['tdm', 'competitive'].includes(body.mode)) ||
+            !['tdm', 'competitive', 'ctf'].includes(body.mode)) ||
           (body.fillBots !== undefined && typeof body.fillBots !== 'boolean')
         )
           throw Error('Takım seçimi geçersiz');
@@ -295,7 +295,10 @@ export function createRoomServer({
   const tick = () => {
     for (const [code, room] of rooms) {
       for (const [token, c] of room.clients)
-        if (now() - c.lastSeen > 8000) {
+        // Keep a seat reserved through a short network interruption. The browser
+        // resumes using the same token, so a momentary Wi-Fi handoff does not
+        // turn the player into a bot or discard the room session.
+        if (now() - c.lastSeen > 30000) {
           leaveMatch(room.match, c.id);
           room.clients.delete(token);
           if (token === room.owner)

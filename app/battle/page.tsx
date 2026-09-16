@@ -55,7 +55,7 @@ export default function Battle() {
   const [touch, setTouch] = useState(false),
     [team, setTeam] = useState('blue'),
     [size, setSize] = useState(2),
-    [gameMode, setGameMode] = useState<'competitive' | 'tdm'>('competitive');
+    [gameMode, setGameMode] = useState<'competitive' | 'tdm' | 'ctf'>('competitive');
   const [hud, setHud] = useState({
     health: 100,
     maxHealth: 100,
@@ -112,7 +112,7 @@ export default function Battle() {
       _team: string,
       _size: number,
       _fillBots: boolean,
-      _mode: 'competitive' | 'tdm',
+      _mode: 'competitive' | 'tdm' | 'ctf',
     ) => {},
     signal: (_signal: string) => {},
     weapon: (_weapon: string) => {},
@@ -120,7 +120,7 @@ export default function Battle() {
       _team: string,
       _size: number,
       _classId: string,
-      _mode: 'competitive' | 'tdm',
+      _mode: 'competitive' | 'tdm' | 'ctf',
     ) => {},
     resume: () => {},
     pause: () => {},
@@ -272,6 +272,7 @@ export default function Battle() {
     let playerId = 'local';
     const models = new Map<string, ReturnType<typeof makeWarrior>>();
     const horseModels = new Map<number, ReturnType<typeof makeHorse>>();
+    const flagModels = new Map<string, THREE.Group>();
     const arrowModels = new Map<number, THREE.Mesh>();
     const sparks: { mesh: THREE.Mesh; v: THREE.Vector3; left: number }[] = [];
     let hitPulse = 0,
@@ -307,6 +308,15 @@ export default function Battle() {
       );
       models.set(a.id, model);
       scene.add(model.group);
+    };
+    const addFlag = (team: string) => {
+      const group = new THREE.Group();
+      const color = team === 'blue' ? 0x327795 : 0xad4f40;
+      box(group, 0.11, 3.1, 0.11, 0, 1.55, 0, 0x594b36);
+      box(group, 1.25, 0.76, 0.08, 0.62, 2.5, 0, color);
+      flagModels.set(team, group);
+      scene.add(group);
+      return group;
     };
     let match: Match | null = null,
       paused = false,
@@ -495,7 +505,7 @@ export default function Battle() {
       team: string,
       size: number,
       classId = 'knight',
-      mode: 'competitive' | 'tdm' = 'competitive',
+      mode: 'competitive' | 'tdm' | 'ctf' = 'competitive',
     ) => {
       if (online) {
         const session = online;
@@ -536,7 +546,7 @@ export default function Battle() {
       team: string,
       size: number,
       fillRoomWithBots: boolean,
-      mode: 'competitive' | 'tdm',
+      mode: 'competitive' | 'tdm' | 'ctf',
     ) => {
       setConnecting(true);
       setError('');
@@ -815,8 +825,22 @@ export default function Battle() {
                 return;
               }
               session.failures++;
-              setError('Bağlantı kesildi: ' + e.message);
-              if (session.failures >= 3) {
+              // Back off and retry with the same authenticated session. The
+              // server keeps that session alive for 30 seconds, covering a
+              // short connection or Wi-Fi interruption without losing a seat.
+              const retryIn = Math.min(
+                4000,
+                250 * 2 ** Math.min(session.failures - 1, 4),
+              );
+              session.lastPoll = now + retryIn;
+              if (session.failures < 12) {
+                setError(
+                  `Bağlantı yeniden kuruluyor (${session.failures}/12)…`,
+                );
+                return;
+              }
+              setError('Bağlantı kurulamadı. Oyunu duraklattık; bağlantını kontrol edip devam edebilirsin.');
+              if (session.failures >= 12) {
                 paused = true;
                 release();
                 setHud((h) => ({ ...h, paused: true }));
@@ -1119,6 +1143,16 @@ export default function Battle() {
             });
             horseModels.delete(id);
           }
+        for (const flag of match.flags || []) {
+          const model = flagModels.get(flag.team) || addFlag(flag.team);
+          const carrier = match.actors.find((actor) => actor.id === flag.carrier);
+          model.position.set(
+            flag.x,
+            carrier ? (carrier.mounted ? 2.4 : 1.35) : 0,
+            flag.z,
+          );
+          model.rotation.y = carrier ? carrier.heading : 0;
+        }
         for (const p of match.projectiles) {
           if (!arrowModels.has(p.id)) {
             const mesh = new THREE.Mesh(
@@ -1334,6 +1368,8 @@ export default function Battle() {
             <small>
               {hud.mode === 'competitive'
                 ? `RAUNT ${hud.round} · HEDEF 7`
+                : hud.mode === 'ctf'
+                  ? 'BAYRAK · HEDEF 3'
                 : 'HEDEF 15'}
             </small>
           </div>
@@ -1406,11 +1442,12 @@ export default function Battle() {
             <select
               value={gameMode}
               onChange={(e) =>
-                setGameMode(e.target.value as 'competitive' | 'tdm')
+                setGameMode(e.target.value as 'competitive' | 'tdm' | 'ctf')
               }
             >
               <option value="competitive">Rekabetçi raund</option>
               <option value="tdm">Team Deathmatch</option>
+              <option value="ctf">Bayrak kapmaca</option>
             </select>
           </label>
           <label className="control-mode">

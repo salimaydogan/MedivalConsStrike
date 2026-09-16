@@ -99,7 +99,11 @@ test('HTTP room: two humans, bot replacement, authority, replay rejection and di
       200,
     );
     assert.equal(rooms.get(code).match.actors.filter((a) => a.bot).length, 3);
+    // A brief interruption retains the player's place and permits a retry.
     clock = 8100;
+    tick();
+    assert.equal(rooms.get(code).clients.size, 1);
+    clock = 30100;
     tick();
     assert.equal(rooms.get(code).clients.size, 0);
     assert.equal(rooms.get(code).match.actors.filter((a) => a.bot).length, 4);
