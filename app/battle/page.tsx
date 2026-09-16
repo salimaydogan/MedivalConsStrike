@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import MobileControls from '../../components/mobile-controls';
 import { createMatch, joinMatch, stepMatch } from '../../lib/match.mjs';
 import { WORLD_SOLIDS, DEFENSE_STRUCTURES } from '../../lib/world.mjs';
@@ -219,6 +221,67 @@ export default function Battle() {
     });
     scene.add(sun);
     const materials = new Map<number, THREE.MeshStandardMaterial>();
+    const characterLoader = new GLTFLoader();
+    const characterTemplates = new Map<string, THREE.Group>();
+    const characterRequests = new Map<string, Promise<THREE.Group>>();
+    const loadCharacter = (team: string) => {
+      const url = '/knight.glb';
+      const cached = characterTemplates.get(url);
+      const color = new THREE.Color(team === 'blue' ? 0x2f6d9a : 0x9c3035);
+      const prepare = (source: THREE.Group) => {
+        const asset = SkeletonUtils.clone(source);
+        asset.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.castShadow = true;
+          object.receiveShadow = true;
+          object.frustumCulled = false;
+          const sourceMaterial = object.material;
+          const sourceMaterials = Array.isArray(sourceMaterial)
+            ? sourceMaterial
+            : [sourceMaterial];
+          object.material = sourceMaterials.map((material) => {
+            const clone = material.clone();
+            if ('color' in clone)
+              (clone as THREE.MeshStandardMaterial).color.lerp(color, 0.35);
+            clone.side = THREE.DoubleSide;
+            return clone;
+          });
+        });
+        return asset;
+      };
+      if (cached) return Promise.resolve(prepare(cached));
+      let request = characterRequests.get(url);
+      if (!request) {
+        request = new Promise<THREE.Group>((resolve, reject) => {
+          characterLoader.load(
+            url,
+            ({ scene: asset }) => {
+              asset.updateMatrixWorld(true);
+              const bounds = new THREE.Box3().setFromObject(asset);
+              const height = bounds.getSize(new THREE.Vector3()).y;
+              if (!Number.isFinite(height) || height <= 0) {
+                reject(new Error('Model bounds are empty.'));
+                return;
+              }
+              asset.scale.setScalar(2.18 / height);
+              asset.updateMatrixWorld(true);
+              const scaledBounds = new THREE.Box3().setFromObject(asset);
+              asset.position.set(
+                -(scaledBounds.min.x + scaledBounds.max.x) / 2,
+                -scaledBounds.min.y,
+                -(scaledBounds.min.z + scaledBounds.max.z) / 2,
+              );
+              characterTemplates.set(url, asset);
+              resolve(asset);
+            },
+            undefined,
+            reject,
+          );
+        });
+        characterRequests.set(url, request);
+      }
+      return request.then(prepare);
+    };
     const material = (color: number) => {
       if (!materials.has(color))
         materials.set(
@@ -309,6 +372,19 @@ export default function Battle() {
       );
       models.set(a.id, model);
       scene.add(model.group);
+      void loadCharacter(a.team)
+        .then((asset) => {
+          if (disposed || models.get(a.id) !== model) return;
+          model.body.visible = false;
+          model.arms.forEach((arm) => (arm.visible = false));
+          model.legs.forEach((leg) => (leg.visible = false));
+          model.group.add(asset);
+        })
+        .catch((reason) => {
+          console.error('Character model could not be loaded.', reason);
+          if (!disposed)
+            setError('Yeni karakter yüklenemedi; varsayılan görünüm kullanılıyor.');
+        });
     };
     const addFlag = (team: string) => {
       const group = new THREE.Group();
