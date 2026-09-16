@@ -1,11 +1,21 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 type Mat = (color: number) => THREE.MeshStandardMaterial;
-export function makeWarrior(color: number, local: boolean, mat: Mat) {
+/** Team outfits share the combat rig but deliberately have different silhouettes. */
+export function makeWarrior(
+  color: number,
+  local: boolean,
+  mat: Mat,
+  faction: 'blue' | 'red' = 'blue',
+) {
   const group = new THREE.Group();
+  const rebel = faction === 'red';
   // All warriors share the caller's material cache; armour catches light while
   // fabric and leather stay matte. No per-frame textures or extra lights.
-  const steel = 0x78848b, edge = 0xa5afb3, leather = 0x49372b;
+  const steel = rebel ? 0x4c4843 : 0x78848b,
+    edge = rebel ? 0x776a5a : 0xa5afb3,
+    leather = rebel ? 0x3b2923 : 0x49372b,
+    clothShadow = rebel ? 0x4c2528 : 0x1f4050;
   for (const c of [steel, edge]) {
     const material = mat(c);
     material.metalness = 0.65;
@@ -60,6 +70,15 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     return piece;
   };
   tailored([[0,0.95],[0.27,0.95],[0.28,1.13],[0.335,1.4],[0.33,1.55],[0.18,1.66],[0.12,1.68],[0,1.68]],color,0.68);
+  if (rebel) {
+    // A rough mantle and uneven coat tails make rebels readable at gameplay distance.
+    const mantle = mesh(body, new THREE.CylinderGeometry(0.43, 0.34, 0.34, 12, 1, true), 0x612c30, 0, 1.61, 0.02);
+    mantle.rotation.z = -0.14;
+    for (const x of [-0.25, -0.08, 0.1, 0.27]) {
+      const rag = box(body, clothShadow, x, 0.88 + Math.abs(x) * 0.13, 0.16, 0.12, 0.36 + Math.abs(x) * 0.28, 0.07);
+      rag.rotation.z = x * 0.5;
+    }
+  }
   tailored([[0.13,1.61],[0.145,1.65],[0.14,1.77],[0.1,1.78]],0x40474a,0.9);
   // Quilted seams follow both sides of the tunic, visible from the chase camera.
   for (const side of [-1,1]) {
@@ -87,14 +106,21 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     new THREE.Vector2(0.16,0.21),new THREE.Vector2(0.09,0.28),new THREE.Vector2(0,0.32),
   ],16),steel,0,1.94,0.015);
   helmet.scale.z=0.93;
+  if (rebel) helmet.scale.set(1.06, 0.67, 1.02);
   const band=mesh(body,new THREE.CylinderGeometry(0.194,0.194,0.045,16,1,true),edge,0,1.96,0.015);
   band.scale.z=0.93;
   box(body,0x2c2926,0,1.925,-0.158,0.22,0.035,0.018);
-  box(body,edge,0,1.9,-0.184,0.032,0.17,0.027);
+  if (!rebel) box(body,edge,0,1.9,-0.184,0.032,0.17,0.027);
+  if (rebel) {
+    const hood = mesh(body, new THREE.TorusGeometry(0.205, 0.06, 6, 14), 0x632d31, 0, 1.9, 0.02);
+    hood.rotation.x = Math.PI / 2;
+  }
   for(const side of [-1,1]) {
-    const cheek=box(body,steel,side*0.15,1.86,-0.006,0.035,0.19,0.18);
-    cheek.rotation.z=side*0.13;
-    ell(body,edge,side*0.17,1.965,-0.07,0.018,0.018,0.018);
+    if (!rebel || side < 0) {
+      const cheek=box(body,steel,side*0.15,1.86,-0.006,0.035,0.19,0.18);
+      cheek.rotation.z=side*0.13;
+      ell(body,edge,side*0.17,1.965,-0.07,0.018,0.018,0.018);
+    }
   }
   const arms: THREE.Group[] = [],
     legs: THREE.Group[] = [],
@@ -104,8 +130,8 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     arm.position.set(side * 0.43, 1.58, 0);
     group.add(arm);
     arms.push(arm);
-    ell(arm, steel, 0, -0.035, 0, 0.16, 0.13, 0.18);
-    ell(arm, edge, 0, -0.12, 0, 0.155, 0.045, 0.17);
+    ell(arm, rebel ? leather : steel, 0, -0.035, 0, 0.16, 0.13, 0.18);
+    ell(arm, rebel ? 0x774334 : edge, 0, -0.12, 0, 0.155, 0.045, 0.17);
     mesh(
       arm,
       new THREE.CylinderGeometry(0.12, 0.1, 0.3, 8),
@@ -114,11 +140,11 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
       -0.24,
       0,
     );
-    ell(arm, steel, 0, -0.4, 0, 0.105, 0.08, 0.11);
+    ell(arm, rebel ? leather : steel, 0, -0.4, 0, 0.105, 0.08, 0.11);
     mesh(
       arm,
       new THREE.CylinderGeometry(0.11, 0.08, 0.24, 8),
-      steel,
+      rebel ? 0x59453a : steel,
       0,
       -0.53,
       0,
@@ -135,7 +161,7 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     mesh(
       leg,
       new THREE.CylinderGeometry(0.145, 0.11, 0.37, 9),
-      0x4d585a,
+      rebel ? 0x4b4038 : 0x4d585a,
       0,
       -0.185,
       0,
@@ -144,7 +170,7 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
     knee.position.y = -0.37;
     leg.add(knee);
     knees.push(knee);
-    ell(knee, steel, 0, 0, -0.04, 0.115, 0.105, 0.115);
+    ell(knee, rebel ? leather : steel, 0, 0, -0.04, 0.115, 0.105, 0.115);
     mesh(
       knee,
       new THREE.CylinderGeometry(0.11, 0.08, 0.32, 9),
@@ -292,6 +318,7 @@ export function makeWarrior(color: number, local: boolean, mat: Mat) {
   group.add(trail);
   return {
     group,
+    body,
     arms,
     legs,
     knees,
@@ -326,7 +353,19 @@ export function makeHorse(mat: Mat) {
     group.add(m);
     return m;
   };
-  ell(0x73503a, 0, 1.38, 0, 0.47, 0.55, 0.9);
+  const body = new THREE.Group();
+  group.add(body);
+  const bodyEll = (
+    c: number, x: number, y: number, z: number, sx: number, sy: number, sz: number,
+  ) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), mat(c));
+    m.position.set(x, y, z);
+    m.scale.set(sx, sy, sz);
+    m.castShadow = true;
+    body.add(m);
+    return m;
+  };
+  bodyEll(0x73503a, 0, 1.38, 0, 0.47, 0.55, 0.9);
   const neck = ell(0x805b40, 0, 1.96, -0.65, 0.28, 0.68, 0.33);
   neck.rotation.x = -0.35;
   ell(0x886043, 0, 2.4, -1.02, 0.24, 0.27, 0.48);
@@ -336,10 +375,17 @@ export function makeHorse(mat: Mat) {
   }
   ell(0x3d342c, 0, 2.31, -1.4, 0.22, 0.16, 0.14);
   ell(0x292c2a, 0, 2.27, -0.55, 0.1, 0.42, 0.09);
-  ell(0x372f27, 0, 1.02, 0.92, 0.11, 0.55, 0.13);
+  const tail = new THREE.Group();
+  tail.position.set(0, 1.52, 0.75);
+  group.add(tail);
+  const tailHair = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.035, 0.78, 7), mat(0x372f27));
+  tailHair.position.y = 0.32;
+  tailHair.rotation.x = -0.36;
+  tailHair.castShadow = true;
+  tail.add(tailHair);
   ell(0x243b46, 0, 1.92, 0.08, 0.5, 0.1, 0.45);
   ell(0x4d3429, 0, 2.03, 0.12, 0.34, 0.13, 0.3);
-  const legs: THREE.Group[] = [];
+  const legs: THREE.Group[] = [], knees: THREE.Group[] = [];
   for (const x of [-0.31, 0.31])
     for (const z of [-0.58, 0.58]) {
       const leg = new THREE.Group();
@@ -347,18 +393,30 @@ export function makeHorse(mat: Mat) {
       group.add(leg);
       legs.push(leg);
       const m = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.095, 0.065, 0.92, 8),
+        new THREE.CylinderGeometry(0.11, 0.08, 0.58, 8),
         mat(0x563e2d),
       );
-      m.position.y = -0.46;
+      m.position.y = -0.29;
       m.castShadow = true;
       leg.add(m);
+      const knee = new THREE.Group();
+      knee.position.y = -0.57;
+      leg.add(knee);
+      knees.push(knee);
+      const cannon = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.075, 0.055, 0.52, 8),
+        mat(0x684934),
+      );
+      cannon.position.y = -0.26;
+      cannon.castShadow = true;
+      knee.add(cannon);
       const hoof = new THREE.Mesh(
         new THREE.BoxGeometry(0.18, 0.16, 0.24),
         mat(0x302d28),
       );
-      hoof.position.set(0, -0.95, -0.025);
-      leg.add(hoof);
+      hoof.position.set(0, -0.57, -0.055);
+      hoof.castShadow = true;
+      knee.add(hoof);
     }
-  return { group, legs };
+  return { group, body, neck, tail, legs, knees };
 }

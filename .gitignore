@@ -37,3 +37,6 @@ next-env.d.ts
 /outputs/
 /work/
 *.tsbuildinfo
+
+# Local 3D model library; publish selected production assets only.
+/public/models/

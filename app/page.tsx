@@ -15,7 +15,7 @@ import {stepTrainingCombat} from '../lib/training-combat.mjs';
 type Status = { mounted: boolean; near: boolean; speed: number; distance: number };
 export default function Home() {
   const host = useRef<HTMLDivElement>(null);
-  const commands = useRef({ reset: () => {}, mount: () => {}, play: () => {},pause:()=>{},move:(_x:number,_y:number)=>{},look:(_x:number,_y:number)=>{},attack:()=>{},dodge:()=>{},guard:(_held:boolean)=>{},sprint:(_held:boolean)=>{},controlMode:(_touch:boolean)=>{} });
+  const commands = useRef({ reset: () => {}, mount: () => {}, play: () => {},pause:()=>{},move:(_x:number,_y:number)=>{},look:(_x:number,_y:number)=>{},attack:()=>{},dodge:()=>{},jump:()=>{},guard:(_held:boolean)=>{},sprint:(_held:boolean)=>{},controlMode:(_touch:boolean)=>{} });
   const [touch,setTouch]=useState(false);
 
   const [combatUI,setCombatUI]=useState({stamina:100,health:100,hits:0,blocks:0,message:'Hedeflere yaklaş · Sol tıkla saldır',blocking:false,hurt:0,dead:false});
@@ -168,7 +168,7 @@ export default function Home() {
       stamina-=attackCost(mounted);regenDelay=.9;attackTime=0;hitChecked=false;if(!mounted)heading=yaw;tone(240,.15,'sawtooth',.018);
     };
     const pointerUp=(e:MouseEvent)=>{dragging=false;if(e.button===2)blocking=false;};
-    commands.current={reset,mount,play:lock,pause,dodge,
+    commands.current={reset,mount,play:lock,pause,dodge,jump:()=>{},
       controlMode:enabled=>{pause();mobile=enabled;setTouch(enabled);renderer.setPixelRatio(Math.min(devicePixelRatio,mobile?1.25:1.7));sun.shadow.mapSize.set(mobile?1024:2048,mobile?1024:2048);sun.shadow.map?.dispose();sun.shadow.map=null;resize();},
       move:(x,y)=>{touchX=x;touchY=y;},
       look:(x,y)=>{if(!active)return;mouseIdle=0;yaw-=x*.005;pitch=THREE.MathUtils.clamp(pitch+y*.004,.12,1.05);},

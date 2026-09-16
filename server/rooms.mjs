@@ -15,6 +15,7 @@ export function parseCommand(value) {
   const {
     attack = false,
     attackHeld,
+    pitch = 0,
     cancelAttack = false,
     attackDirection = 'right',
     guard = false,
@@ -27,10 +28,11 @@ export function parseCommand(value) {
   if (!['sword', 'spear', 'bow'].includes(weapon))
     throw Error('Geçersiz silah');
   if (attackHeld !== undefined && typeof attackHeld !== 'boolean') throw Error('Geçersiz komut');
+  if (!Number.isFinite(pitch) || pitch < -0.4 || pitch > 1.25) throw Error('Geçersiz komut');
   if (!['right', 'left', 'overhead', 'thrust'].includes(attackDirection)) throw Error('Geçersiz saldırı yönü');
   if ([attack, cancelAttack, guard, dodge, jump, mount].some((v) => typeof v !== 'boolean'))
     throw Error('Geçersiz komut');
-  return { ...parseMovementMessage(move), attack, attackHeld, cancelAttack, attackDirection, guard, dodge, jump, mount, weapon };
+  return { ...parseMovementMessage(move), attack, attackHeld, pitch, cancelAttack, attackDirection, guard, dodge, jump, mount, weapon };
 }
 export function createRoomServer({
   origins = ['http://localhost:3000', 'http://127.0.0.1:3000'],

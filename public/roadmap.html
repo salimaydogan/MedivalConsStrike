@@ -6,9 +6,9 @@
     <title>MedivalConsStrike · Yol haritası</title>
     <style>
       :root {
-        font-family: system-ui, sans-serif;
-        color: #e9eee9;
-        background: #101d23;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #edf3f1;
+        background: #0d171c;
         color-scheme: dark;
       }
       * {
@@ -16,6 +16,7 @@
       }
       body {
         margin: 0;
+        line-height: 1.5;
       }
       a {
         color: #e6bd7c;
@@ -26,17 +27,17 @@
         font: inherit;
       }
       main {
-        max-width: 1040px;
+        max-width: 900px;
         margin: auto;
-        padding: 36px 24px 70px;
+        padding: 28px 20px 56px;
       }
       .top {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 20px;
-        border-bottom: 1px solid #33474c;
-        padding-bottom: 24px;
+        gap: 16px;
+        border-bottom: 1px solid #2c3d42;
+        padding-bottom: 18px;
       }
       .brand {
         font-weight: 700;
@@ -47,7 +48,7 @@
         font-size: 14px;
       }
       .intro {
-        margin: 36px 0 24px;
+        margin: 30px 0 20px;
       }
       .eyebrow {
         font-size: 12px;
@@ -56,28 +57,30 @@
         font-weight: 700;
       }
       h1 {
-        font-size: clamp(30px, 5vw, 44px);
-        margin: 10px 0;
-        font-weight: 600;
+        font-size: clamp(30px, 5vw, 42px);
+        margin: 8px 0;
+        font-weight: 700;
         letter-spacing: -0.03em;
       }
       .intro p {
-        color: #acbebd;
-        font-size: 16px;
-        line-height: 1.7;
-        max-width: 760px;
+        color: #b8c7c5;
+        font-size: 15px;
+        max-width: 680px;
+        margin: 0;
       }
       .summary {
-        display: flex;
+        display: grid;
+        grid-template-columns: auto 1fr;
         align-items: center;
-        gap: 24px;
-        background: #1b3038;
-        padding: 24px;
-        border: 1px solid #395158;
-        margin: 26px 0;
+        gap: 18px;
+        background: #17282f;
+        padding: 18px 20px;
+        border: 1px solid #30484f;
+        border-radius: 8px;
+        margin: 22px 0 10px;
       }
       .summary strong {
-        font-size: 36px;
+        font-size: 32px;
         color: #e6bd7c;
         min-width: 90px;
       }
@@ -113,13 +116,14 @@
       .roadmap-controls {
         display: flex;
         justify-content: flex-end;
-        margin: 18px 0;
+        margin: 14px 0 8px;
       }
       .filter-button {
         border: 1px solid #5c716f;
-        background: #1b3038;
+        background: transparent;
         color: #e9eee9;
-        padding: 10px 14px;
+        padding: 8px 12px;
+        border-radius: 5px;
         cursor: pointer;
       }
       .filter-button:hover,
@@ -128,16 +132,18 @@
         background: #29424a;
       }
       .phase {
-        border: 1px solid #34474c;
-        background: #15262d;
-        margin-top: 22px;
+        border: 1px solid #2d444b;
+        background: #132229;
+        border-radius: 8px;
+        margin-top: 18px;
+        overflow: hidden;
       }
       .phase header {
         display: flex;
         gap: 18px;
         align-items: flex-start;
-        padding: 24px;
-        border-bottom: 1px solid #34474c;
+        padding: 18px 20px;
+        border-bottom: 1px solid #2d444b;
       }
       .number {
         font-size: 22px;
@@ -148,13 +154,13 @@
         flex: 1;
       }
       h2 {
-        font-size: 20px;
-        font-weight: 600;
-        margin: 0 0 6px;
+        font-size: 18px;
+        font-weight: 700;
+        margin: 0 0 4px;
       }
       .phase header p {
-        font-size: 14px;
-        color: #aebfbd;
+        font-size: 13px;
+        color: #b1c1bf;
         margin: 0;
         line-height: 1.6;
       }
@@ -166,10 +172,10 @@
       .task {
         display: flex;
         align-items: center;
-        gap: 14px;
-        padding: 16px 24px;
+        gap: 12px;
+        padding: 13px 20px;
         cursor: pointer;
-        min-height: 56px;
+        min-height: 50px;
       }
       .task + .task {
         border-top: 1px solid #233941;
@@ -185,7 +191,7 @@
         cursor: pointer;
       }
       .task-name {
-        font-size: 15px;
+        font-size: 14px;
         line-height: 1.5;
         flex: 1;
       }
@@ -196,7 +202,8 @@
       }
       .tag {
         font-size: 12px;
-        padding: 4px 8px;
+        padding: 3px 7px;
+        border-radius: 4px;
         border: 1px solid #4e6266;
         color: #ced9d5;
         white-space: nowrap;
@@ -208,26 +215,26 @@
         outline-offset: 4px;
       }
       .foot {
-        margin-top: 26px;
+        margin-top: 22px;
         border-left: 3px solid #b79864;
-        padding: 6px 18px;
-        line-height: 1.7;
-        color: #acbebd;
-        font-size: 14px;
+        padding: 4px 16px;
+        line-height: 1.6;
+        color: #b8c7c5;
+        font-size: 13px;
       }
       #save-state {
         color: #b5cbbc;
       }
       @media (max-width: 650px) {
         main {
-          padding: 22px 14px;
+          padding: 20px 14px 40px;
         }
         .phase header {
-          padding: 18px;
+          padding: 16px;
           gap: 12px;
         }
         .task {
-          padding: 14px 16px;
+          padding: 12px 16px;
           flex-wrap: wrap;
           gap: 10px;
         }
@@ -238,7 +245,7 @@
           margin-left: 31px;
         }
         .summary {
-          padding: 18px;
+          padding: 16px;
           gap: 14px;
         }
         .summary strong {

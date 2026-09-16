@@ -305,6 +305,7 @@ export default function Battle() {
         a.team === 'blue' ? 0x316f8b : 0xa94f40,
         a.id === playerId,
         material,
+        a.team === 'red' ? 'red' : 'blue',
       );
       models.set(a.id, model);
       scene.add(model.group);
@@ -577,7 +578,7 @@ export default function Battle() {
           url: base,
           code: value.code,
           token: value.token,
-          owner: value.owner,
+          owner: !!value.owner,
           sequence: 0,
           lastPoll: 0,
           busy: false,
@@ -587,7 +588,7 @@ export default function Battle() {
         setConnection({
           code: value.code,
           players: value.players,
-          owner: value.owner,
+          owner: !!value.owner,
         });
         applySnapshot(value);
         setTeam(value.match.actors.find((a: Actor) => a.id === value.playerId)!.team);
@@ -791,6 +792,7 @@ export default function Battle() {
             sprint:
               !paused &&
               (input.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight')),
+            pitch,
             guard: !paused && input.guard,
             attack: !paused && input.attack,
             dodge: !paused && input.dodge,
@@ -872,6 +874,7 @@ export default function Battle() {
               {
                 local: {
                   ...input,
+                  pitch,
                   sprint:
                     input.sprint ||
                     keys.has('ShiftLeft') ||
@@ -989,16 +992,41 @@ export default function Battle() {
           m.halo.scale.setScalar(
             a.protection > 0 ? 1.2 + Math.sin(now * 0.006) * 0.1 : 1,
           );
-          const weight = a.health > 0 ? Math.min(a.speed / 3.3, 1) : 0;
+          // A walk is driven by distance travelled, not a wall-clock loop. This
+          // keeps feet planted while a fighter stops, gets staggered or is blocked.
+          const weight = a.health > 0 ? Math.min(Math.abs(a.speed) / 3.3, 1) : 0;
+          const stride = Math.sin(a.gait);
+          const attackAmount = a.attackTime >= 0 ? Math.sin(Math.min(1, attackPhase) * Math.PI) : 0;
+          m.body.position.y = THREE.MathUtils.damp(
+            m.body.position.y,
+            Math.abs(stride) * 0.035 * weight,
+            14,
+            dt,
+          );
+          m.body.rotation.x = THREE.MathUtils.damp(
+            m.body.rotation.x,
+            a.mounted ? -0.1 : -0.035 * stride * weight - attackAmount * 0.07,
+            12,
+            dt,
+          );
+          m.body.rotation.y = THREE.MathUtils.damp(
+            m.body.rotation.y,
+            a.attackTime >= 0 && a.weapon !== 'bow'
+              ? (a.attackDirection === 'left' ? -0.16 : 0.16) * attackAmount
+              : 0.045 * stride * weight,
+            14,
+            dt,
+          );
           for (let i = 0; i < 2; i++) {
+            const legStride = Math.sin(a.gait + i * Math.PI);
             m.legs[i].rotation.x = a.mounted
               ? -0.9
-              : Math.sin(a.gait + i * Math.PI) * 0.65 * weight;
+              : legStride * 0.65 * weight;
             m.knees[i].rotation.x = a.mounted
               ? 1.2
-              : Math.max(0, -Math.sin(a.gait + i * Math.PI)) * 0.9 * weight;
+              : Math.max(0, -legStride) * 0.9 * weight;
             m.arms[i].rotation.x =
-              -Math.sin(a.gait + i * Math.PI) * 0.3 * weight;
+              -legStride * 0.3 * weight;
           }
           m.elbows.forEach((elbow) => elbow.rotation.set(0, 0, 0));
           m.arms[1].rotation.order = 'YXZ';
@@ -1126,14 +1154,37 @@ export default function Battle() {
             const visual = models.get(rider.id)!.group.position;
             model.group.position.set(visual.x, 0, visual.z);
           }
-          model.legs.forEach(
-            (leg, i) =>
-              (leg.rotation.x = rider
-                ? Math.sin(rider.gait + (i % 2) * Math.PI) *
-                  0.6 *
-                  Math.min(Math.abs(rider.speed) / 5, 1)
-                : 0),
+          // Four-beat gallop: front and hind legs no longer move as two rigid
+          // pairs. The lower leg folds on the recovery half of each stride.
+          const horseSpeed = rider ? Math.abs(rider.speed) : 0;
+          const horseWeight = THREE.MathUtils.smoothstep(horseSpeed, 0.15, 5.8);
+          const gallop = THREE.MathUtils.smoothstep(horseSpeed, 6.2, 12.5);
+          const phase = rider ? rider.gait : now * 0.0015 + h.id;
+          const trotPhase = [0, Math.PI, Math.PI, 0];
+          const gallopPhase = [0, 1.8, 0.68, 2.5];
+          const bob = rider ? Math.cos(phase * 2) * (0.018 + gallop * 0.045) * horseWeight : 0;
+          model.body.position.y = bob;
+          model.body.rotation.x = THREE.MathUtils.damp(
+            model.body.rotation.x,
+            rider ? Math.sin(phase) * 0.035 * gallop * horseWeight : 0,
+            10,
+            dt,
           );
+          model.group.rotation.z = THREE.MathUtils.damp(
+            model.group.rotation.z,
+            rider ? -rider.steering * Math.min(horseSpeed / 13, 1) * 0.09 : 0,
+            8,
+            dt,
+          );
+          model.neck.rotation.x = -0.35 + Math.sin(phase * 2) * 0.035 * horseWeight;
+          model.tail.rotation.z = Math.sin(phase * 0.75 + h.id) * (0.06 + horseWeight * 0.11);
+          model.legs.forEach((leg, i) => {
+            const legPhase = phase + THREE.MathUtils.lerp(trotPhase[i], gallopPhase[i], gallop);
+            const swing = Math.sin(legPhase);
+            leg.rotation.x = swing * (0.42 + gallop * 0.23) * horseWeight;
+            model.knees[i].rotation.x =
+              Math.max(0, -swing) * (0.5 + gallop * 0.35) * horseWeight;
+          });
         }
         for (const [id, model] of horseModels)
           if (!match.horses.some((h) => h.id === id)) {
@@ -1164,8 +1215,11 @@ export default function Battle() {
             arrowModels.set(p.id, mesh);
           }
           const mesh = arrowModels.get(p.id)!;
-          mesh.position.set(p.x, p.y ?? 1.45, p.z);
-          mesh.rotation.y = Math.atan2(p.vx, p.vz);
+          mesh.position.set(p.x, (p as { y?: number }).y ?? 1.45, p.z);
+          mesh.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 0, 1),
+             new THREE.Vector3(p.vx, (p as { vy?: number }).vy || 0, p.vz).normalize(),
+          );
         }
         for (const [id, mesh] of arrowModels)
           if (!match.projectiles.some((p) => p.id === id)) {
@@ -1380,13 +1434,13 @@ export default function Battle() {
         <section className="battle-menu">
           <span className="eyebrow">TEAM DEATHMATCH</span>
           <h1>
-            Takımını seç.
+            Tarafını seç.
             <br />
             <em>Meydana çık.</em>
           </h1>
           <p>
-            Oda ayarını seç. Rakibini devir, takımına skor kazandır. 15 skor
-            veya 5 dakika.
+            Mavi askerlerin düzenini ya da kızıl asilerin isyanını temsil et.
+            Rakibini devir, tarafına skor kazandır. 15 skor veya 5 dakika.
           </p>
           {touch && (
             <>
@@ -1408,13 +1462,13 @@ export default function Battle() {
               aria-pressed={team === 'blue'}
               onClick={() => setTeam('blue')}
             >
-              Mavi takım
+              Mavi askerler
             </button>
             <button
               aria-pressed={team === 'red'}
               onClick={() => setTeam('red')}
             >
-              Kızıl takım
+              Kızıl asiler
             </button>
           </div>
           <label className="control-mode">
